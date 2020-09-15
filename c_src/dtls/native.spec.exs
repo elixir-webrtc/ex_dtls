@@ -4,6 +4,8 @@ interface CNode
 
 state_type "State"
 
-spec do_handshake(state) :: {:ok :: label}
+spec init(socket_path :: string) :: {:ok :: label, state}
+
+spec do_handshake(state) :: {:ok :: label, state}
 
 sends {:handshake_finished :: label, keying_material :: string}

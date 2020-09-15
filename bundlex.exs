@@ -10,7 +10,7 @@ defmodule DTLS do
   defp natives() do
     [
       native: [
-        sources: ["native.c"],
+        sources: ["native.c", "dtls.c"],
         deps: [unifex: :unifex],
         pkg_configs: ["openssl"],
         libs: ["pthread"],
