@@ -1,4 +1,4 @@
-# ElixirDtls
+# ElixirDTLS
 
 [![Hex.pm](https://img.shields.io/hexpm/v/elixir_dtls.svg)](https://hex.pm/packages/elixir_dtls)
 [![CircleCI](https://circleci.com/gh/membraneframework/elixir_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/elixir_dtls)

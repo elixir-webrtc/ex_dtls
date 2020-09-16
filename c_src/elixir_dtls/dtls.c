@@ -12,12 +12,12 @@ SSL_CTX *create_ctx() {
     exit(EXIT_FAILURE);
   }
 
-  if (SSL_CTX_use_certificate_file(ssl_ctx, "./cert.pem", SSL_FILETYPE_PEM) != 1) {
+  if (SSL_CTX_use_certificate_file(ssl_ctx, "/home/michal/Repos/elixir_dtls/c_src/elixir_dtls/cert.pem", SSL_FILETYPE_PEM) != 1) {
     perror("Cannot load certificate file");
     exit(EXIT_FAILURE);
   }
 
-  if (SSL_CTX_use_PrivateKey_file(ssl_ctx, "./key.pem", SSL_FILETYPE_PEM) != 1) {
+  if (SSL_CTX_use_PrivateKey_file(ssl_ctx, "/home/michal/Repos/elixir_dtls/c_src/elixir_dtls/key.pem", SSL_FILETYPE_PEM) != 1) {
     perror("Cannot load key file");
     exit(EXIT_FAILURE);
   }
@@ -25,9 +25,15 @@ SSL_CTX *create_ctx() {
   return ssl_ctx;
 }
 
-SSL *create_ssl(SSL_CTX *ssl_ctx) {
+SSL *create_ssl(SSL_CTX *ssl_ctx, int client_mode) {
   SSL *ssl = SSL_new(ssl_ctx);
-  SSL_set_connect_state(ssl);
+
+  if (client_mode) {
+    SSL_set_connect_state(ssl);
+  } else {
+    SSL_set_accept_state(ssl);
+  }
+
   if (ssl == NULL) {
     perror("Cannot create ssl structure");
     exit(EXIT_FAILURE);

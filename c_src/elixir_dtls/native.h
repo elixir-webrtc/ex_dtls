@@ -10,6 +10,7 @@ struct State {
   SSL_CTX *ssl_ctx;
   SSL *ssl;
   int handshake_state;
+  int client_mode;
   pthread_t rx_fun_tid;
   pthread_t tx_fun_tid;
   pthread_t handshake_fun_tid;

@@ -1,4 +1,4 @@
-defmodule DTLS do
+defmodule ElixirDTLS.BundlexProject do
   use Bundlex.Project
 
   def project do

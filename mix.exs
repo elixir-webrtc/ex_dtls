@@ -1,4 +1,4 @@
-defmodule DTLS do
+defmodule ElixirDTLS.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
@@ -6,7 +6,7 @@ defmodule DTLS do
 
   def project do
     [
-      app: :dtls,
+      app: :elixir_dtls,
       version: @version,
       elixir: "~> 1.10.4",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
@@ -19,7 +19,7 @@ defmodule DTLS do
       package: package(),
 
       # docs
-      name: "DTLS",
+      name: "ElixirDTLS",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()
@@ -62,7 +62,7 @@ defmodule DTLS do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [DTLS]
+      nest_modules_by_prefix: [ElixirDTLS]
     ]
   end
 end
