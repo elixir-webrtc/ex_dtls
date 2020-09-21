@@ -3,6 +3,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <errno.h>
+
 #include "native.h"
 #include "dtls.h"
 
@@ -77,6 +79,7 @@ static void *listen_function(void *user_data) {
     exit(EXIT_FAILURE);
   }
   state->handshake_state = HANDSHAKE_STATE_READY;
+  DEBUG("DTLS MODULE READY");
   return NULL;
 }
 
@@ -86,12 +89,17 @@ static void *rx_function(void *user_data) {
     char buf[BUF_LEN] = {0};
     int bytes = recv(state->peer_fd, buf, BUF_LEN, 0);
     DEBUG("Recv: %d", bytes);
+    if (bytes == 0) {
+      DEBUG("received 0 bytes, exiting");
+      exit(EXIT_FAILURE);
+    }
     if (BIO_write(SSL_get_rbio(state->ssl), buf, bytes) != bytes) {
       DEBUG("BIO write error");
       ERR_print_errors_fp(stderr);
       exit(EXIT_FAILURE);
     }
-    if (!state->client_mode) {
+    if (!state->client_mode && state->handshake_state == HANDSHAKE_STATE_READY) {
+      DEBUG("Server starting handshake");
       state->handshake_state = HANDSHAKE_STATE_STARTED;
       if (pthread_create(&state->handshake_fun_tid, NULL, handshake_function, (void *) state)) {
         perror("Cannot create handshake function thread");
@@ -134,16 +142,22 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
 static void *handshake_function(void *user_data) {
   State *state = (State *)user_data;
   while(state->handshake_state != HANDSHAKE_STATE_FINISHED) {
+    sleep(1);
     int res = SSL_do_handshake(state->ssl);
     if(res != 1) {
+      if (errno != 0) {
+        perror("perror");
+      }
       res = SSL_get_error(state->ssl, res);
       if(res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE){
-        send_handshake_failed(state->env, *state->env->reply_to, 0);
+        DEBUG("err: %ld", ERR_get_error());
         DEBUG("Handshake failed: %d", res);
+        send_handshake_failed(state->env, *state->env->reply_to, 0);
         ERR_print_errors_fp(stderr);
         ERR_print_errors(SSL_get_rbio(state->ssl));
         ERR_print_errors(SSL_get_wbio(state->ssl));
         state->handshake_state = HANDSHAKE_STATE_FINISHED;
+        DEBUG("ping ping")
         exit(EXIT_FAILURE);
       } else {
         continue;

@@ -1,10 +1,11 @@
 defmodule ElixirDTLS.Support.TestReceiver do
-  use Agent
+  use GenServer
 
   alias ElixirDTLS
 
   defmodule State do
-    defstruct listen_socket: nil,
+    defstruct parent: nil,
+              listen_socket: nil,
               peer_socket: nil,
               dtls_socket: nil,
               dtls_pid: nil,
@@ -12,8 +13,29 @@ defmodule ElixirDTLS.Support.TestReceiver do
               peer_to_dtls_pid: nil
   end
 
-  def start_link(port) do
-    Agent.start_link(fn -> init_socket(port) end, name: __MODULE__)
+  # Client API
+  def start_link(parent, port) do
+    GenServer.start_link(__MODULE__, {parent, port})
+  end
+
+  def init_dtls_module(pid, dtls_socket_path) do
+    GenServer.call(pid, {:init_dtls_module, dtls_socket_path})
+  end
+
+  def run_transmit_process(pid) do
+    GenServer.call(pid, :run_transmit_process)
+  end
+
+  def accept(pid) do
+    GenServer.call(pid, :accept)
+  end
+
+  # Server API
+  @impl true
+  def init({parent, port}) do
+    state = init_socket(port)
+    state = %State{state | parent: parent}
+    {:ok, state}
   end
 
   defp init_socket(port) do
@@ -24,27 +46,29 @@ defmodule ElixirDTLS.Support.TestReceiver do
     %State{listen_socket: listen_socket}
   end
 
-  def accept() do
-    %State{listen_socket: listen_socket} = Agent.get(__MODULE__, fn state -> state end)
+  @impl true
+  def handle_call(:accept, _from, %State{listen_socket: listen_socket} = state) do
     {:ok, socket} = :socket.accept(listen_socket)
-    Agent.update(__MODULE__, fn state -> %State{state | peer_socket: socket} end)
+    new_state = %State{state | peer_socket: socket}
+    {:reply, :ok, new_state}
   end
 
-  def init_dtls_module(dtls_socket_path) do
-    dtls_pid = ElixirDTLS.start_link(dtls_socket_path, false)
+  @impl true
+  def handle_call({:init_dtls_module, dtls_socket_path}, _from, state) do
+    {:ok, pid} = ElixirDTLS.start_link(self(), dtls_socket_path, false)
     {:ok, socket} = :socket.open(:local, :stream, :default)
     addr = %{:family => :local, :path => dtls_socket_path}
     :ok = :socket.connect(socket, addr)
-
-    Agent.update(__MODULE__, fn state ->
-      %State{state | dtls_socket: socket, dtls_pid: dtls_pid}
-    end)
+    new_state = %State{state | dtls_pid: pid, dtls_socket: socket}
+    {:reply, :ok, new_state}
   end
 
-  def run_transmit_process() do
-    %State{peer_socket: peer_socket, dtls_socket: dtls_socket} =
-      Agent.get(__MODULE__, fn state -> state end)
-
+  @impl true
+  def handle_call(
+        :run_transmit_process,
+        _from,
+        %State{peer_socket: peer_socket, dtls_socket: dtls_socket} = state
+      ) do
     dtls_to_peer_pid =
       spawn(fn ->
         dtls_to_peer(dtls_socket, peer_socket)
@@ -55,10 +79,21 @@ defmodule ElixirDTLS.Support.TestReceiver do
         peer_to_dtls(dtls_socket, peer_socket)
       end)
 
-    :ok =
-      Agent.update(__MODULE__, fn state ->
-        %State{state | dtls_to_peer_pid: dtls_to_peer_pid, peer_to_dtls_pid: peer_to_dtls_pid}
-      end)
+    new_state = %State{
+      state
+      | dtls_to_peer_pid: dtls_to_peer_pid,
+        peer_to_dtls_pid: peer_to_dtls_pid
+    }
+
+    {:reply, :ok, new_state}
+  end
+
+  @impl true
+  def handle_info(msg, %State{parent: parent} = state) do
+    IO.inspect(msg, label: "test_receiver")
+    send(parent, msg)
+    destroy(state)
+    {:noreply, state}
   end
 
   defp dtls_to_peer(dtls_socket, peer_socket) do
@@ -73,31 +108,20 @@ defmodule ElixirDTLS.Support.TestReceiver do
     peer_to_dtls(dtls_socket, peer_socket)
   end
 
-  def accept_handshake() do
+  defp destroy(state) do
     %State{
+      peer_socket: peer_socket,
+      dtls_socket: dtls_socket,
       dtls_pid: dtls_pid,
       dtls_to_peer_pid: dtls_to_peer_pid,
       peer_to_dtls_pid: peer_to_dtls_pid
-    } = Agent.get(__MODULE__, fn state -> state end)
+    } = state
 
-    res = ElixirDTLS.accept_handshake(dtls_pid)
+    Process.exit(dtls_pid, :normal)
     Process.exit(dtls_to_peer_pid, :normal)
     Process.exit(peer_to_dtls_pid, :normal)
-    destroy()
-    res
-  end
-
-  def destroy() do
-    %State{
-      listen_socket: listen_socket,
-      peer_socket: peer_socket,
-      dtls_socket: dtls_socket
-    } = Agent.get(__MODULE__, fn state -> state end)
-
-    :socket.shutdown(listen_socket, :read_write)
     :socket.shutdown(peer_socket, :read_write)
     :socket.shutdown(dtls_socket, :read_write)
-    :socket.close(listen_socket)
     :socket.close(peer_socket)
     :socket.close(dtls_socket)
   end
