@@ -30,6 +30,10 @@ defmodule ElixirDTLS.Support.TestReceiver do
     GenServer.call(pid, :accept)
   end
 
+  def do_handshake(pid) do
+    GenServer.cast(pid, :do_handshake)
+  end
+
   # Server API
   @impl true
   def init({parent, port}) do
@@ -86,6 +90,12 @@ defmodule ElixirDTLS.Support.TestReceiver do
     }
 
     {:reply, :ok, new_state}
+  end
+
+  @impl true
+  def handle_cast(:do_handshake, %State{dtls_pid: dtls_pid} = state) do
+    ElixirDTLS.do_handshake(dtls_pid)
+    {:noreply, state}
   end
 
   @impl true

@@ -8,7 +8,7 @@ defmodule ElixirDTLSTest do
     :file.delete("socket1")
     :file.delete("socket2")
 
-    port = 40059
+    port = 40064
     {:ok, rx_pid} = TestReceiver.start_link(self(), port)
     {:ok, tx_pid} = TestSender.start_link(self(), port)
     :ok = TestReceiver.accept(rx_pid)
@@ -19,9 +19,10 @@ defmodule ElixirDTLSTest do
     :ok = TestReceiver.run_transmit_process(rx_pid)
     :ok = TestSender.run_transmit_process(tx_pid)
 
+    :ok = TestReceiver.do_handshake(rx_pid)
     :ok = TestSender.do_handshake(tx_pid)
 
-    assert_receive({:handshake_finished, keying_material}, 10000)
-    assert_receive({:handshake_finished, keying_material}, 10000)
+    assert_receive({:handshake_finished, keying_material}, 3000)
+    assert_receive({:handshake_finished, keying_material}, 3000)
   end
 end

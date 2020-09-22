@@ -91,9 +91,6 @@ unsigned char *export_keying_material(SSL *ssl) {
     printf("Cannot export keying material\n");
     fflush(stdout);
     exit(EXIT_FAILURE);
-  } else {
-    printf("Keying material: %s\n", material);
-    fflush(stdout);
   }
   return material;
 }
