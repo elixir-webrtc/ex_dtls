@@ -12,15 +12,11 @@ SSL_CTX *create_ctx() {
     exit(EXIT_FAILURE);
   }
 
-  if (SSL_CTX_use_certificate_file(ssl_ctx, "/home/michal/Repos/elixir_dtls/c_src/elixir_dtls/cert.pem", SSL_FILETYPE_PEM) != 1) {
-    perror("Cannot load certificate file");
-    exit(EXIT_FAILURE);
-  }
+  EVP_PKEY *pkey = gen_key();
+  SSL_CTX_use_PrivateKey(ssl_ctx, pkey);
 
-  if (SSL_CTX_use_PrivateKey_file(ssl_ctx, "/home/michal/Repos/elixir_dtls/c_src/elixir_dtls/key.pem", SSL_FILETYPE_PEM) != 1) {
-    perror("Cannot load key file");
-    exit(EXIT_FAILURE);
-  }
+  X509 *x509 = gen_cert(pkey);
+  SSL_CTX_use_certificate(ssl_ctx, x509);
 
   return ssl_ctx;
 }
@@ -93,4 +89,47 @@ unsigned char *export_keying_material(SSL *ssl) {
     exit(EXIT_FAILURE);
   }
   return material;
+}
+
+EVP_PKEY *gen_key() {
+  EVP_PKEY *pkey;
+  pkey = EVP_PKEY_new();
+
+  RSA *rsa = RSA_new();
+  BIGNUM *exp = BN_new();
+  BN_set_word(exp, 65537L);
+  RSA_generate_key_ex(rsa, 2048, exp, NULL);
+  if (rsa == NULL) {
+    printf("error\n");
+    fflush(stdout);
+  }
+  EVP_PKEY_assign_RSA(pkey, rsa);
+
+  return pkey;
+}
+
+X509 *gen_cert(EVP_PKEY *pkey) {
+  X509 *x509;
+  x509 = X509_new();
+  ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
+
+  X509_gmtime_adj(X509_get_notBefore(x509), 0);
+  X509_gmtime_adj(X509_get_notAfter(x509), 31536000L);
+
+  X509_set_pubkey(x509, pkey);
+
+  X509_NAME * name;
+  name = X509_get_subject_name(x509);
+
+  X509_NAME_add_entry_by_txt(name, "C",  MBSTRING_ASC,
+                             (unsigned char *)"PL", -1, -1, 0);
+  X509_NAME_add_entry_by_txt(name, "O",  MBSTRING_ASC,
+                             (unsigned char *)"MyCompany Inc.", -1, -1, 0);
+  X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                             (unsigned char *)"localhost", -1, -1, 0);
+
+  X509_set_issuer_name(x509, name);
+  X509_sign(x509, pkey, EVP_sha1());
+
+  return x509;
 }
