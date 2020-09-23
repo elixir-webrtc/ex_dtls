@@ -78,8 +78,10 @@ defmodule ElixirDTLS do
     - `{:handshake_finished, keying_material}` - handshake finished successfully. `keying_material`
     is a String.
     - `{:handshake_failed, :peer_shutdown}` - peer closed the connection.
-    - `{:handshake_failed, error}` - handshake failed. `error` indicates error code returned by
-    `SSL_get_error` function provided by OpenSSL.
+    - `{:handshake_failed, :wbio_error}` - error while using write BIO.
+    - `{:handshake_failed, :rbio_error}` - error while using read BIO.
+    - `{:handshake_failed, :ssl_error, err_code}` - executing SSL_do_handshake failed. `err_code`
+    indicates error code returned by `SSL_get_error` function provided by OpenSSL.
   """
   def do_handshake(pid) do
     GenServer.cast(pid, :do_handshake)

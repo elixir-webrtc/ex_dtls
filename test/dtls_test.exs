@@ -4,17 +4,14 @@ defmodule ElixirDTLSTest do
   alias ElixirDTLS.Support.TestReceiver
   alias ElixirDTLS.Support.TestSender
 
-  test "dtls" do
-    :file.delete("socket1")
-    :file.delete("socket2")
-
-    port = 40064
+  test "dtls-srtp" do
+    port = 40070
     {:ok, rx_pid} = TestReceiver.start_link(self(), port)
     {:ok, tx_pid} = TestSender.start_link(self(), port)
     :ok = TestReceiver.accept(rx_pid)
 
-    :ok = TestReceiver.init_dtls_module(rx_pid, "socket1")
-    :ok = TestSender.init_dtls_module(tx_pid, "socket2")
+    :ok = TestReceiver.init_dtls_module(rx_pid, "elixir_dtls_test_socket_1")
+    :ok = TestSender.init_dtls_module(tx_pid, "elixir_dtls_test_socket_2")
 
     :ok = TestReceiver.run_transmit_process(rx_pid)
     :ok = TestSender.run_transmit_process(tx_pid)

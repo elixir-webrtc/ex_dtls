@@ -10,4 +10,6 @@ spec do_handshake(state) :: {:ok :: label, state}
 
 sends {:handshake_finished :: label, keying_material :: string}
 sends {:handshake_failed :: label, :peer_shutdown :: label}
-sends {:handshake_failed :: label, error :: int}
+sends {:handshake_failed :: label, :wbio_error :: label}
+sends {:handshake_failed :: label, :rbio_error :: label}
+sends {:handshake_failed :: label, :ssl_error :: label, err_code :: int}

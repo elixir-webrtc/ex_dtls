@@ -32,8 +32,7 @@ defmodule ElixirDTLS.Support.TestSender do
   # Server API
   @impl true
   def init({parent, port}) do
-    state = init_socket(port)
-    state = %State{state | parent: parent}
+    state = %State{init_socket(port) | parent: parent}
     {:ok, state}
   end
 
@@ -47,9 +46,11 @@ defmodule ElixirDTLS.Support.TestSender do
   @impl true
   def handle_call({:init_dtls_module, dtls_socket_path}, _from, state) do
     {:ok, pid} = ElixirDTLS.start_link(self(), dtls_socket_path, true)
+
     {:ok, socket} = :socket.open(:local, :stream, :default)
     addr = %{:family => :local, :path => dtls_socket_path}
     :ok = :socket.connect(socket, addr)
+
     new_state = %State{state | dtls_pid: pid, dtls_socket: socket}
     {:reply, :ok, new_state}
   end
@@ -93,7 +94,6 @@ defmodule ElixirDTLS.Support.TestSender do
 
   @impl true
   def handle_info(msg, %State{parent: parent} = state) do
-    IO.inspect(msg, label: "test_sender")
     send(parent, msg)
     destroy(state)
     {:noreply, state}
@@ -117,8 +117,10 @@ defmodule ElixirDTLS.Support.TestSender do
     Process.exit(dtls_pid, :normal)
     Process.exit(dtls_to_peer_pid, :normal)
     Process.exit(peer_to_dtls_pid, :normal)
+
     :socket.shutdown(peer_socket, :read_write)
     :socket.shutdown(dtls_socket, :read_write)
+
     :socket.close(peer_socket)
     :socket.close(dtls_socket)
   end

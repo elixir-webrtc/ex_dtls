@@ -9,10 +9,9 @@ struct State {
   UnifexEnv *env;
   SSL_CTX *ssl_ctx;
   SSL *ssl;
-  int handshake_state;
+  EVP_PKEY *pkey;
+  X509 *x509;
   int client_mode;
-  pthread_t rx_fun_tid;
-  pthread_t tx_fun_tid;
   pthread_t handshake_fun_tid;
   pthread_t listen_fun_tid;
   int socket_fd;
