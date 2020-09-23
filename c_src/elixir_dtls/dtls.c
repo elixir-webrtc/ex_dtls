@@ -54,6 +54,7 @@ unsigned char *export_keying_material(SSL *ssl) {
   int master_key_len;
   int master_salt_len;
   switch (srtp_profile->id) {
+  // Refer to RFC 3711 section 8.2
   case SRTP_AES128_CM_SHA1_80:
     master_key_len = 16;
     master_salt_len = 14;
@@ -62,6 +63,7 @@ unsigned char *export_keying_material(SSL *ssl) {
     master_key_len = 16;
     master_salt_len = 14;
     break;
+  // Refer to RFC 7741 section 12
   case SRTP_AEAD_AES_128_GCM:
     master_key_len = 16;
     master_salt_len = 12;
@@ -75,6 +77,7 @@ unsigned char *export_keying_material(SSL *ssl) {
     return NULL;
   }
 
+  // Refer to RFC 5764 section 4.2
   int len = 2 * (master_key_len + master_salt_len);
   unsigned char *material = (unsigned char *)malloc(len * sizeof(char));
   memset(material, 0, len);
@@ -148,10 +151,10 @@ X509 *gen_cert(EVP_PKEY *pkey) {
   if (X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char *)"PL",
                                  -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC,
-                                 (unsigned char *)"MyCompany Inc.", -1, -1,
+                                 (unsigned char *)"ElixirDTLS", -1, -1,
                                  0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                                 (unsigned char *)"localhost", -1, -1,
+                                 (unsigned char *)"ElixirDTLS", -1, -1,
                                  0) == 0) {
     DEBUG("Cannot set cert name");
     return NULL;
