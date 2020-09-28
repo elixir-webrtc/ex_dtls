@@ -136,8 +136,6 @@ defmodule ElixirDTLS do
   defp hex_dump(digest_str) do
     digest_str
     |> :binary.bin_to_list()
-    |> Enum.map(fn x -> :io_lib.format("~2.16.0B:", [x]) end)
-    |> :binary.list_to_bin()
-    |> String.slice(0..-2)
+    |> Enum.map_join(":", &:io_lib.format("~2.16.0B", [&1]))
   end
 end
