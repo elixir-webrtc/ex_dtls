@@ -5,7 +5,7 @@ defmodule ElixirDTLSTest do
   alias ElixirDTLS.Support.TestSender
 
   test "dtls-srtp" do
-    port = 40070
+    port = 40_070
     {:ok, rx_pid} = TestReceiver.start_link(self(), port)
     {:ok, tx_pid} = TestSender.start_link(self(), port)
     :ok = TestReceiver.accept(rx_pid)

@@ -1,9 +1,13 @@
 defmodule ElixirDTLS.Support.TestSender do
+  @moduledoc false
+
   use GenServer
 
   alias ElixirDTLS
 
   defmodule State do
+    @moduledoc false
+
     defstruct parent: nil,
               peer_socket: nil,
               dtls_socket: nil,
@@ -13,18 +17,22 @@ defmodule ElixirDTLS.Support.TestSender do
   end
 
   # Client API
+  # credo:disable-for-next-line
   def start_link(parent, port) do
     GenServer.start_link(__MODULE__, {parent, port})
   end
 
+  # credo:disable-for-next-line
   def init_dtls_module(pid, dtls_socket_path) do
     GenServer.call(pid, {:init_dtls_module, dtls_socket_path})
   end
 
+  # credo:disable-for-next-line
   def run_transmit_process(pid) do
     GenServer.call(pid, :run_transmit_process)
   end
 
+  # credo:disable-for-next-line
   def do_handshake(pid) do
     GenServer.cast(pid, :do_handshake)
   end

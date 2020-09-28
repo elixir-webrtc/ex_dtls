@@ -84,6 +84,7 @@ defmodule ElixirDTLS do
     - `{:handshake_failed, :ssl_error, err_code}` - executing SSL_do_handshake failed. `err_code`
     indicates error code returned by `SSL_get_error` function provided by OpenSSL.
   """
+  @spec do_handshake(pid :: pid()) :: :ok
   def do_handshake(pid) do
     GenServer.cast(pid, :do_handshake)
   end
@@ -91,6 +92,7 @@ defmodule ElixirDTLS do
   @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
+  @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: String.t()}
   def get_cert_fingerprint(pid) do
     GenServer.call(pid, :get_cert_fingerprint)
   end
