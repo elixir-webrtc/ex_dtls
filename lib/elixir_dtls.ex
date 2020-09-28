@@ -1,5 +1,5 @@
 defmodule ElixirDTLS do
-  @moduledoc"""
+  @moduledoc """
   Module that allows performing DTLS handshake including DTLS-SRTP one. Architecture is presented
   below:
   ```
@@ -41,14 +41,14 @@ defmodule ElixirDTLS do
     @moduledoc false
 
     @type t :: %__MODULE__{
-                parent: pid(),
-                cnode: Unifex.CNode.t()
-               }
+            parent: pid(),
+            cnode: Unifex.CNode.t()
+          }
     defstruct parent: nil,
               cnode: nil
   end
 
-  @doc"""
+  @doc """
   Starts DTLS GenServer process linked to current process.
 
   - `parent` - a caller pid. This pid is used for sending messages from DTLS module to its parent.
@@ -60,12 +60,13 @@ defmodule ElixirDTLS do
   After this function returns user can connect to DTLS local domain socket created under
   `out_socket_path`.
   """
-  @spec start_link(parent :: pid, out_socket_path :: String.t(), client_mode :: boolean) :: {:ok, pid}
+  @spec start_link(parent :: pid, out_socket_path :: String.t(), client_mode :: boolean) ::
+          {:ok, pid}
   def start_link(parent, out_socket_path, client_mode) do
     GenServer.start_link(__MODULE__, {parent, out_socket_path, client_mode})
   end
 
-  @doc"""
+  @doc """
   Calling this function when module is working in a client mode will cause starting DTLS handshake.
 
   Calling this function when module is working in a server mode will start server waiting for
@@ -85,6 +86,13 @@ defmodule ElixirDTLS do
   """
   def do_handshake(pid) do
     GenServer.cast(pid, :do_handshake)
+  end
+
+  @doc """
+  Returns a digest of the DER representation of the X509 certificate.
+  """
+  def get_cert_fingerprint(pid) do
+    GenServer.call(pid, :get_cert_fingerprint)
   end
 
   # Server APi
@@ -111,8 +119,23 @@ defmodule ElixirDTLS do
 
   @doc false
   @impl true
+  def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
+    {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
+    {:reply, {:ok, hex_dump(digest)}, state}
+  end
+
+  @doc false
+  @impl true
   def handle_info(msg, %State{parent: parent} = state) do
     send(parent, msg)
     {:noreply, state}
+  end
+
+  defp hex_dump(digest_str) do
+    digest_str
+    |> :binary.bin_to_list()
+    |> Enum.map(fn x -> :io_lib.format("~2.16.0B:", [x]) end)
+    |> :binary.list_to_bin()
+    |> String.slice(0..-2)
   end
 end

@@ -8,7 +8,7 @@ defmodule ElixirDTLS.Mixfile do
     [
       app: :elixir_dtls,
       version: @version,
-      elixir: "~> 1.10.4",
+      elixir: "~> 1.10",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
