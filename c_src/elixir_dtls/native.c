@@ -5,18 +5,15 @@
 
 #include "native.h"
 
-static int init_socket(char *path);
-static int run_listen_thread(State *state);
-static void *listen_function(void *user_data);
-static void *handshake_function(void *user_data);
-
 #define BUF_LEN 2048
 
 #define DEBUG(X, ...)                                                          \
   printf(X "\n", ##__VA_ARGS__);                                               \
   fflush(stdout);
 
-UNIFEX_TERM init(UnifexEnv *env, char *socket_path, int client_mode) {
+static void *handshake_function(void *user_data);
+
+UNIFEX_TERM init(UnifexEnv *env, int client_mode) {
   State *state = unifex_alloc_state(env);
   state->env = env;
 
@@ -48,67 +45,19 @@ UNIFEX_TERM init(UnifexEnv *env, char *socket_path, int client_mode) {
     return unifex_raise(env, "Cannot create ssl");
   }
 
-  state->socket_fd = init_socket(socket_path);
-  if (state->socket_fd == -1) {
-    return unifex_raise(env, "Cannot init out socket");
-  }
-
   state->client_mode = client_mode;
-
-  if (run_listen_thread(state) == -1) {
-    return unifex_raise(env, "Cannot run listen thread");
-  }
+  state->SSL_error = SSL_ERROR_NONE;
 
   return init_result_ok(env, state);
 }
 
-static int init_socket(char *socket_path) {
-  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (fd == -1) {
-    DEBUG("Cannot create socket");
-    return fd;
+UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
+  unsigned char md[EVP_MAX_MD_SIZE];
+  unsigned int size;
+  if(X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
+    get_cert_fingerprint_result_error_failed_to_get_fingerprint(env);
   }
-
-  unlink(socket_path);
-
-  struct sockaddr_un addr;
-  memset(&addr, 0, sizeof(addr));
-  addr.sun_family = AF_UNIX;
-  strcpy(addr.sun_path, socket_path);
-
-  if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-    DEBUG("Cannot bind");
-    return -1;
-  }
-
-  return fd;
-}
-
-static int run_listen_thread(State *state) {
-  if (pthread_create(&state->listen_fun_tid, NULL, listen_function,
-                     (void *)state)) {
-    return -1;
-  }
-  return 0;
-}
-
-static void *listen_function(void *user_data) {
-  State *state = (State *)user_data;
-  if (listen(state->socket_fd, 1) == -1) {
-    DEBUG("Listen error");
-    exit(EXIT_FAILURE);
-  }
-
-  int peer_fd = accept(state->socket_fd, NULL, NULL);
-  if (peer_fd == -1) {
-    DEBUG("Accept error");
-    exit(EXIT_FAILURE);
-  }
-  state->peer_fd = peer_fd;
-
-  DEBUG("DTLS MODULE READY");
-
-  return NULL;
+  return get_cert_fingerprint_result_ok(env, state, (char *)md);
 }
 
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
@@ -140,9 +89,14 @@ static void *handshake_function(void *user_data) {
 
       DEBUG("WBIO: read: %d bytes", read_bytes);
 
-      ssize_t bytes = send(state->peer_fd, data, pending_data_len, 0);
+      UnifexPayload *payload = (UnifexPayload *)unifex_alloc(sizeof(UnifexPayload));
+      payload->data = (unsigned char*)data;
+      payload->size = (unsigned int)read_bytes;
+      payload->type = UNIFEX_PAYLOAD_BINARY,
+      payload->owned = 0;
+      send_packets(state->env, *state->env->reply_to, 0, payload);
 
-      DEBUG("Sent %ld bytes", bytes);
+      DEBUG("Sent %d bytes", payload->size);
 
       free(data);
     }
@@ -151,29 +105,9 @@ static void *handshake_function(void *user_data) {
     switch (res) {
     case SSL_ERROR_WANT_READ:
       DEBUG("SSL WANT READ");
-
-      char buf[BUF_LEN] = {0};
-      int bytes = recv(state->peer_fd, buf, BUF_LEN, 0);
-
-      DEBUG("Recv: %d", bytes);
-
-      if (bytes == 0) {
-        DEBUG("Peer socket shutdown, handshake failed");
-        send_handshake_failed_peer_shutdown(state->env, *state->env->reply_to,
-                                            0);
-        exit(EXIT_FAILURE);
-      }
-
-      bytes = BIO_write(SSL_get_rbio(state->ssl), buf, bytes);
-      if (bytes <= 0) {
-        DEBUG("RBIO: write error");
-        send_handshake_failed_rbio_error(state->env, *state->env->reply_to, 0);
-        exit(EXIT_FAILURE);
-      }
-
-      DEBUG("RBIO: wrote %d", bytes);
-
-      break;
+      state->SSL_error = SSL_ERROR_WANT_READ;
+      // break and wait for data from remote host. It will come in feed() function.
+      return NULL;
     case SSL_ERROR_WANT_WRITE:
       DEBUG("SSL WANT WRITE");
       break;
@@ -204,17 +138,32 @@ static void *handshake_function(void *user_data) {
       exit(EXIT_FAILURE);
     }
   }
-
   return NULL;
 }
 
-UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
-  unsigned char md[EVP_MAX_MD_SIZE];
-  unsigned int size;
-  if(X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
-    get_cert_fingerprint_result_error_failed_to_get_fingerprint(env);
+UNIFEX_TERM feed(UnifexEnv *env, State *state, UnifexPayload *payload) {
+
+  DEBUG("Feeding: %d", payload->size);
+
+  if (payload->size == 0) {
+    DEBUG("Peer socket shutdown, handshake failed");
+    send_handshake_failed_peer_shutdown(state->env, *state->env->reply_to,
+                                        0);
+    exit(EXIT_FAILURE);
   }
-  return get_cert_fingerprint_result_ok(env, state, (char *)md);
+
+  int bytes = BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
+  if (bytes <= 0) {
+    DEBUG("RBIO: write error");
+    send_handshake_failed_rbio_error(state->env, *state->env->reply_to, 0);
+    exit(EXIT_FAILURE);
+  }
+
+  DEBUG("RBIO: wrote %d", bytes);
+
+  do_handshake(env, state);
+
+  return feed_result_ok(env, state);
 }
 
 void handle_destroy_state(UnifexEnv *env, State *state) {
@@ -236,9 +185,4 @@ void handle_destroy_state(UnifexEnv *env, State *state) {
   if (state->x509) {
     X509_free(state->x509);
   }
-
-  shutdown(state->socket_fd, SHUT_RDWR);
-  shutdown(state->peer_fd, SHUT_RDWR);
-  close(state->socket_fd);
-  close(state->peer_fd);
 }

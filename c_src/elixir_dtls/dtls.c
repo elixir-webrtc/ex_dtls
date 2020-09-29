@@ -151,10 +151,10 @@ X509 *gen_cert(EVP_PKEY *pkey) {
   if (X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char *)"PL",
                                  -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC,
-                                 (unsigned char *)"ElixirDTLS", -1, -1,
+                                 (unsigned char *)"ExDTLS", -1, -1,
                                  0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                                 (unsigned char *)"ElixirDTLS", -1, -1,
+                                 (unsigned char *)"ExDTLS", -1, -1,
                                  0) == 0) {
     DEBUG("Cannot set cert name");
     return NULL;

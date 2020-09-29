@@ -1,9 +1,9 @@
-defmodule ElixirDTLS.Support.TestReceiver do
+defmodule ExDTLS.Support.TestPeer do
   @moduledoc false
 
   use GenServer
 
-  alias ElixirDTLS
+  alias ExDTLS
 
   defmodule State do
     @moduledoc false
@@ -11,16 +11,24 @@ defmodule ElixirDTLS.Support.TestReceiver do
     defstruct parent: nil,
               listen_socket: nil,
               peer_socket: nil,
-              dtls_socket: nil,
-              dtls_pid: nil,
-              dtls_to_peer_pid: nil,
+              dtls: nil,
               peer_to_dtls_pid: nil
   end
 
   # Client API
   # credo:disable-for-next-line
-  def start_link(parent, port) do
-    GenServer.start_link(__MODULE__, {parent, port})
+  def start_link(parent, client_mode) do
+    GenServer.start_link(__MODULE__, {parent, client_mode})
+  end
+
+  # credo:disable-for-next-line
+  def listen(pid, port) do
+    GenServer.call(pid, {:listen, port})
+  end
+
+  # credo:disable-for-next-line
+  def connect(pid, port) do
+    GenServer.call(pid, {:connect, port})
   end
 
   # credo:disable-for-next-line
@@ -45,17 +53,27 @@ defmodule ElixirDTLS.Support.TestReceiver do
 
   # Server API
   @impl true
-  def init({parent, port}) do
-    state = %State{init_socket(port) | parent: parent}
+  def init({parent, client_mode}) do
+    {:ok, dtls} = ExDTLS.start_link(self(), client_mode)
+    state = %State{parent: parent, dtls: dtls}
     {:ok, state}
   end
 
-  defp init_socket(port) do
+  def handle_call({:listen, port}, _from, state) do
     {:ok, listen_socket} = :socket.open(:inet, :stream, :tcp)
     addr = %{:family => :inet, :port => port, :addr => {127, 0, 0, 1}}
     {:ok, _port} = :socket.bind(listen_socket, addr)
     :ok = :socket.listen(listen_socket)
-    %State{listen_socket: listen_socket}
+    new_state = %State{state | listen_socket: listen_socket}
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call({:connect, port}, _from, state) do
+    {:ok, socket} = :socket.open(:inet, :stream, :tcp)
+    addr = %{:family => :inet, :port => port, :addr => {127, 0, 0, 1}}
+    :ok = :socket.connect(socket, addr)
+    new_state = %State{state | peer_socket: socket}
+    {:reply, :ok, new_state}
   end
 
   @impl true
@@ -66,45 +84,30 @@ defmodule ElixirDTLS.Support.TestReceiver do
   end
 
   @impl true
-  def handle_call({:init_dtls_module, dtls_socket_path}, _from, state) do
-    {:ok, pid} = ElixirDTLS.start_link(self(), dtls_socket_path, false)
-
-    {:ok, socket} = :socket.open(:local, :stream, :default)
-    addr = %{:family => :local, :path => dtls_socket_path}
-    :ok = :socket.connect(socket, addr)
-
-    new_state = %State{state | dtls_pid: pid, dtls_socket: socket}
-    {:reply, :ok, new_state}
-  end
-
-  @impl true
   def handle_call(
         :run_transmit_process,
         _from,
-        %State{peer_socket: peer_socket, dtls_socket: dtls_socket} = state
+        %State{peer_socket: peer_socket, dtls: dtls} = state
       ) do
-    dtls_to_peer_pid =
-      spawn(fn ->
-        dtls_to_peer(dtls_socket, peer_socket)
-      end)
-
     peer_to_dtls_pid =
       spawn(fn ->
-        peer_to_dtls(dtls_socket, peer_socket)
+        peer_to_dtls(dtls, peer_socket)
       end)
 
-    new_state = %State{
-      state
-      | dtls_to_peer_pid: dtls_to_peer_pid,
-        peer_to_dtls_pid: peer_to_dtls_pid
-    }
+    new_state = %State{state | peer_to_dtls_pid: peer_to_dtls_pid}
 
     {:reply, :ok, new_state}
   end
 
   @impl true
-  def handle_cast(:do_handshake, %State{dtls_pid: dtls_pid} = state) do
-    ElixirDTLS.do_handshake(dtls_pid)
+  def handle_cast(:do_handshake, %State{dtls: dtls} = state) do
+    :ok = ExDTLS.do_handshake(dtls)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:packets, data}, %State{peer_socket: peer_socket} = state) do
+    :socket.send(peer_socket, data)
     {:noreply, state}
   end
 
@@ -115,38 +118,27 @@ defmodule ElixirDTLS.Support.TestReceiver do
     {:noreply, state}
   end
 
-  defp dtls_to_peer(dtls_socket, peer_socket) do
-    {:ok, data} = :socket.recv(dtls_socket)
-    :socket.send(peer_socket, data)
-    dtls_to_peer(dtls_socket, peer_socket)
-  end
-
-  defp peer_to_dtls(dtls_socket, peer_socket) do
+  defp peer_to_dtls(dtls, peer_socket) do
     {:ok, data} = :socket.recv(peer_socket)
-    :socket.send(dtls_socket, data)
-    peer_to_dtls(dtls_socket, peer_socket)
+    :ok = ExDTLS.feed(dtls, data)
+    peer_to_dtls(dtls, peer_socket)
   end
 
   defp destroy(state) do
     %State{
       listen_socket: listen_socket,
       peer_socket: peer_socket,
-      dtls_socket: dtls_socket,
-      dtls_pid: dtls_pid,
-      dtls_to_peer_pid: dtls_to_peer_pid,
+      dtls: dtls,
       peer_to_dtls_pid: peer_to_dtls_pid
     } = state
 
-    Process.exit(dtls_pid, :normal)
-    Process.exit(dtls_to_peer_pid, :normal)
+    Process.exit(dtls, :normal)
     Process.exit(peer_to_dtls_pid, :normal)
 
     :socket.shutdown(listen_socket, :read_write)
     :socket.shutdown(peer_socket, :read_write)
-    :socket.shutdown(dtls_socket, :read_write)
 
     :socket.close(peer_socket)
     :socket.close(peer_socket)
-    :socket.close(dtls_socket)
   end
 end

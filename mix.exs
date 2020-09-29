@@ -1,4 +1,4 @@
-defmodule ElixirDTLS.Mixfile do
+defmodule ExDTLS.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
@@ -62,7 +62,7 @@ defmodule ElixirDTLS.Mixfile do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [ElixirDTLS]
+      nest_modules_by_prefix: [ExDTLS]
     ]
   end
 end
