@@ -13,7 +13,6 @@ struct State {
   EVP_PKEY *pkey;
   X509 *x509;
   int client_mode;
-  pthread_t handshake_fun_tid;
 };
 
 #include "_generated/native.h"

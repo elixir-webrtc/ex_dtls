@@ -11,8 +11,6 @@
   printf(X "\n", ##__VA_ARGS__);                                               \
   fflush(stdout);
 
-static void *handshake_function(void *user_data);
-
 UNIFEX_TERM init(UnifexEnv *env, int client_mode) {
   State *state = unifex_alloc_state(env);
   state->env = env;
@@ -61,15 +59,7 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
 }
 
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
-  if (pthread_create(&state->handshake_fun_tid, NULL, handshake_function,
-                     (void *)state)) {
-    return unifex_raise(env, "Cannot create handshake function thread");
-  }
-  return do_handshake_result_ok(env, state);
-}
-
-static void *handshake_function(void *user_data) {
-  State *state = (State *)user_data;
+//  State *state = (State *)user_data;
   for (;;) {
     int res = SSL_do_handshake(state->ssl);
 
@@ -107,7 +97,7 @@ static void *handshake_function(void *user_data) {
       DEBUG("SSL WANT READ");
       state->SSL_error = SSL_ERROR_WANT_READ;
       // break and wait for data from remote host. It will come in feed() function.
-      return NULL;
+      return do_handshake_result_ok(env, state);
     case SSL_ERROR_WANT_WRITE:
       DEBUG("SSL WANT WRITE");
       break;
@@ -130,7 +120,7 @@ static void *handshake_function(void *user_data) {
       send_handshake_finished(state->env, *state->env->reply_to, 0,
                               (char *)material);
 
-      exit(EXIT_SUCCESS);
+      return do_handshake_result_ok(env, state);
     default:
       DEBUG("SSL ERROR: %d", res);
       send_handshake_failed_ssl_error(state->env, *state->env->reply_to, 0,
@@ -138,7 +128,7 @@ static void *handshake_function(void *user_data) {
       exit(EXIT_FAILURE);
     }
   }
-  return NULL;
+  return do_handshake_result_ok(env, state);
 }
 
 UNIFEX_TERM feed(UnifexEnv *env, State *state, UnifexPayload *payload) {
