@@ -73,8 +73,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       int read_bytes = BIO_read(wbio, data, pending_data_len);
       if (read_bytes <= 0) {
         DEBUG("WBIO: read error");
-        send_handshake_failed_wbio_error(state->env, *state->env->reply_to, 0);
-        exit(EXIT_FAILURE);
+        return unifex_raise(state->env, "Handshake failed: write BIO error");
       }
 
       DEBUG("WBIO: read: %d bytes", read_bytes);
@@ -123,9 +122,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       return do_handshake_result_ok(env, state);
     default:
       DEBUG("SSL ERROR: %d", res);
-      send_handshake_failed_ssl_error(state->env, *state->env->reply_to, 0,
-                                      res);
-      exit(EXIT_FAILURE);
+      return unifex_raise(state->env, "Handshake failed: SSL error");
     }
   }
   return do_handshake_result_ok(env, state);
@@ -137,16 +134,13 @@ UNIFEX_TERM feed(UnifexEnv *env, State *state, UnifexPayload *payload) {
 
   if (payload->size == 0) {
     DEBUG("Peer socket shutdown, handshake failed");
-    send_handshake_failed_peer_shutdown(state->env, *state->env->reply_to,
-                                        0);
-    exit(EXIT_FAILURE);
+    return unifex_raise(state->env, "Handshake failed: peer shutdown");
   }
 
   int bytes = BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
   if (bytes <= 0) {
     DEBUG("RBIO: write error");
-    send_handshake_failed_rbio_error(state->env, *state->env->reply_to, 0);
-    exit(EXIT_FAILURE);
+    return unifex_raise(state->env, "Handshake failed: read BIO error");
   }
 
   DEBUG("RBIO: wrote %d", bytes);
