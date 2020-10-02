@@ -17,8 +17,8 @@ defmodule ExDTLS.Support.TestPeer do
 
   # Client API
   # credo:disable-for-next-line
-  def start_link(parent, client_mode) do
-    GenServer.start_link(__MODULE__, {parent, client_mode})
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts)
   end
 
   # credo:disable-for-next-line
@@ -53,9 +53,11 @@ defmodule ExDTLS.Support.TestPeer do
 
   # Server API
   @impl true
-  def init({parent, client_mode}) do
-    {:ok, dtls} = ExDTLS.start_link(self(), client_mode)
-    state = %State{parent: parent, dtls: dtls}
+  def init(opts) do
+    {:ok, dtls} =
+      ExDTLS.start_link(parent: self(), client_mode: opts[:client_mode], dtls_srtp: true)
+
+    state = %State{parent: opts[:parent], dtls: dtls}
     {:ok, state}
   end
 

@@ -4,7 +4,7 @@ interface CNode
 
 state_type "State"
 
-spec init(client_mode :: bool) :: {:ok :: label, state}
+spec init(client_mode :: bool, dtls_srtp :: bool) :: {:ok :: label, state}
 
 spec get_cert_fingerprint(state) :: {:ok :: label, state, fingerprint :: string}
                                     | {:error :: label, :failed_to_get_fingerprint :: label}

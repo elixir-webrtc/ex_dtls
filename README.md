@@ -25,7 +25,7 @@ end
 ## Usage
 ```elixir
 # Init ExDTLS on both peers with:
-{:ok, dtls} = ExDTLS.start_link(self(), client_mode)
+{:ok, dtls} = ExDTLS.start_link(self(), client_mode, dtls_srtp)
 ```
 
 ```elixir

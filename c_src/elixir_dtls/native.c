@@ -11,11 +11,11 @@
   printf(X "\n", ##__VA_ARGS__);                                               \
   fflush(stdout);
 
-UNIFEX_TERM init(UnifexEnv *env, int client_mode) {
+UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
   State *state = unifex_alloc_state(env);
   state->env = env;
 
-  state->ssl_ctx = create_ctx();
+  state->ssl_ctx = create_ctx(dtls_srtp);
   if (state->ssl_ctx == NULL) {
     return unifex_raise(env, "Cannot create ssl_ctx");
   }

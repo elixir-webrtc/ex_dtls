@@ -22,16 +22,27 @@ defmodule ExDTLS do
               cnode: nil
   end
 
+  @typedoc """
+  Type describing ExDTLS configuration.
+
+  It's a keyword list containing the following keys:
+  * `parent` - a caller pid. This pid is used for sending messages from ExDTLS module to its parent.
+  Possible messages are described in `do_handshake/1` documentation.
+  * `client_mode` - true if ExDTLS module should work as a client or false if as a server.
+  * `dtls_srtp` - true if DTLS-SRTP handshake should be performed or false if a normal one
+  """
+  @type opts_t :: [
+          parent: pid(),
+          client_mode: boolean(),
+          dtls_srtp: boolean()
+        ]
+
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
-
-  - `parent` - a caller pid. This pid is used for sending messages from ExDTLS module to its parent.
-  Possible messages are described in `do_handshake/1` documentation.
-  - `client_mode` - true if ExDTLS module should work as a client or false if as a server.
   """
-  @spec start_link(parent :: pid(), client_mode :: boolean()) :: {:ok, pid}
-  def start_link(parent, client_mode) do
-    GenServer.start_link(__MODULE__, {parent, client_mode})
+  @spec start_link(opts :: opts_t) :: {:ok, pid}
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts)
   end
 
   @doc """
@@ -48,14 +59,9 @@ defmodule ExDTLS do
   This function is required to call only once and only by a client.
 
   Calling this function will make ExDTLS module sending following messages:
-    - `{:packets, data}` - generated DTLS packets that has to be sent by parent to the peer
-    - `{:handshake_finished, keying_material}` - handshake finished successfully. `keying_material`
-    is a String
-    - `{:handshake_failed, :peer_shutdown}` - peer closed the connection
-    - `{:handshake_failed, :wbio_error}` - error while using write BIO
-    - `{:handshake_failed, :rbio_error}` - error while using read BIO
-    - `{:handshake_failed, :ssl_error, err_code}` - executing SSL_do_handshake failed. `err_code`
-    indicates error code returned by `SSL_get_error` function provided by OpenSSL.
+  - `{:packets, data}` - generated DTLS packets that has to be sent by parent to the peer
+  - `{:handshake_finished, keying_material}` - handshake finished successfully. `keying_material`
+  is a String
   """
   @spec do_handshake(pid :: pid()) :: :ok
   def do_handshake(pid) do
@@ -75,10 +81,10 @@ defmodule ExDTLS do
   # Server APi
   @doc false
   @impl true
-  def init({parent, client_mode}) do
+  def init(opts) do
     {:ok, pid} = Unifex.CNode.start_link(:native)
-    :ok = Unifex.CNode.call(pid, :init, [client_mode])
-    state = %State{parent: parent, cnode: pid}
+    :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+    state = %State{parent: opts[:parent], cnode: pid}
     {:ok, state}
   end
 

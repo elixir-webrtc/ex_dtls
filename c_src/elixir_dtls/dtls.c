@@ -4,17 +4,20 @@
   printf(X "\n", ##__VA_ARGS__);                                               \
   fflush(stdout);
 
-SSL_CTX *create_ctx() {
+SSL_CTX *create_ctx(int dtls_srtp) {
   SSL_CTX *ssl_ctx = SSL_CTX_new(DTLS_method());
   if (ssl_ctx == NULL) {
     return NULL;
   }
 
-  int res = SSL_CTX_set_tlsext_use_srtp(
-      ssl_ctx, "SRTP_AES128_CM_SHA1_80:SRTP_AES128_CM_SHA1_32:SRTP_AEAD_AES_"
-               "128_GCM:SRTP_AEAD_AES_256_GCM");
-  if (res != 0) {
-    return NULL;
+  if (dtls_srtp == 1) {
+    DEBUG("Setting SRTP extension")
+    int res = SSL_CTX_set_tlsext_use_srtp(
+        ssl_ctx, "SRTP_AES128_CM_SHA1_80:SRTP_AES128_CM_SHA1_32:SRTP_AEAD_AES_"
+                 "128_GCM:SRTP_AEAD_AES_256_GCM");
+    if (res != 0) {
+      return NULL;
+    }
   }
 
   return ssl_ctx;

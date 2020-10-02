@@ -5,8 +5,8 @@ defmodule ExDTLSTest do
 
   test "dtls-srtp" do
     port = 40_070
-    {:ok, rx_pid} = TestPeer.start_link(self(), false)
-    {:ok, tx_pid} = TestPeer.start_link(self(), true)
+    {:ok, rx_pid} = TestPeer.start_link(parent: self(), client_mode: false)
+    {:ok, tx_pid} = TestPeer.start_link(parent: self(), client_mode: true)
 
     :ok = TestPeer.listen(rx_pid, port)
     :ok = TestPeer.connect(tx_pid, port)
