@@ -1,23 +1,29 @@
 defmodule ExDTLSTest do
   use ExUnit.Case, async: true
 
-  alias ExDTLS.Support.TestPeer
-
   test "dtls-srtp" do
-    port = 40_070
-    {:ok, rx_pid} = TestPeer.start_link(parent: self(), client_mode: false)
-    {:ok, tx_pid} = TestPeer.start_link(parent: self(), client_mode: true)
+    {:ok, rx_pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: true)
+    {:ok, tx_pid} = ExDTLS.start_link(client_mode: true, dtls_srtp: true)
+    {:ok, packets} = ExDTLS.do_handshake(tx_pid)
+    assert :ok == loop({rx_pid, false}, {tx_pid, false}, packets)
+  end
 
-    :ok = TestPeer.listen(rx_pid, port)
-    :ok = TestPeer.connect(tx_pid, port)
-    :ok = TestPeer.accept(rx_pid)
+  defp loop({_pid1, true}, {_pid2, true}, _packets) do
+    :ok
+  end
 
-    :ok = TestPeer.run_transmit_process(rx_pid)
-    :ok = TestPeer.run_transmit_process(tx_pid)
+  defp loop({pid1, false}, {pid2, true}, packets) do
+    {:finished, _keying_material} = ExDTLS.do_handshake(pid1, packets)
+    loop({pid2, true}, {pid1, true}, nil)
+  end
 
-    :ok = TestPeer.do_handshake(tx_pid)
+  defp loop({pid1, state1}, {pid2, state2}, packets) do
+    case ExDTLS.do_handshake(pid1, packets) do
+      {:ok, packets} ->
+        loop({pid2, state2}, {pid1, state1}, packets)
 
-    assert_receive({:handshake_finished, keying_material}, 3000)
-    assert_receive({:handshake_finished, keying_material}, 3000)
+      {:finished_with_packets, _keying_material, packets} ->
+        loop({pid2, state2}, {pid1, true}, packets)
+    end
   end
 end

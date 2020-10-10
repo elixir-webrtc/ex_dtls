@@ -10,7 +10,7 @@ defmodule ExDTLS.BundlexProject do
   defp natives() do
     [
       native: [
-        sources: ["native.c", "dtls.c"],
+        sources: ["native.c", "dtls.c", "dyn_buff.c"],
         deps: [unifex: :unifex],
         pkg_configs: ["openssl"],
         libs: ["pthread"],

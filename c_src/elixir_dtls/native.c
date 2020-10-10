@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "native.h"
+#include "dyn_buff.h"
 
 #define BUF_LEN 2048
 
@@ -58,8 +59,21 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   return get_cert_fingerprint_result_ok(env, state, (char *)md);
 }
 
-UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
-//  State *state = (State *)user_data;
+UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
+  DynBuff *dyn_buff = dyn_buff_new(1024);
+
+  if (payload->size != 0) {
+    DEBUG("Feeding: %d", payload->size);
+
+    int bytes = BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
+    if (bytes <= 0) {
+      DEBUG("RBIO: write error");
+      return unifex_raise(state->env, "Handshake failed: read BIO error");
+    }
+
+    DEBUG("RBIO: wrote %d", bytes);
+  }
+
   for (;;) {
     int res = SSL_do_handshake(state->ssl);
 
@@ -74,18 +88,11 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       if (read_bytes <= 0) {
         DEBUG("WBIO: read error");
         return unifex_raise(state->env, "Handshake failed: write BIO error");
+      } else {
+        dyn_buff_insert(dyn_buff, data, read_bytes);
       }
 
       DEBUG("WBIO: read: %d bytes", read_bytes);
-
-      UnifexPayload *payload = (UnifexPayload *)unifex_alloc(sizeof(UnifexPayload));
-      payload->data = (unsigned char*)data;
-      payload->size = (unsigned int)read_bytes;
-      payload->type = UNIFEX_PAYLOAD_BINARY,
-      payload->owned = 0;
-      send_packets(state->env, *state->env->reply_to, 0, payload);
-
-      DEBUG("Sent %d bytes", payload->size);
 
       free(data);
     }
@@ -96,7 +103,13 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       DEBUG("SSL WANT READ");
       state->SSL_error = SSL_ERROR_WANT_READ;
       // break and wait for data from remote host. It will come in feed() function.
-      return do_handshake_result_ok(env, state);
+      UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
+      memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
+      payload->size = (unsigned int)dyn_buff->data_size;
+      payload->type = UNIFEX_PAYLOAD_BINARY,
+      payload->owned = 0;
+      dyn_buff_free(dyn_buff);
+      return do_handshake_result_ok(env, state, payload);
     case SSL_ERROR_WANT_WRITE:
       DEBUG("SSL WANT WRITE");
       break;
@@ -115,39 +128,23 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       }
 
       DEBUG("Keying material %s", material);
-
-      send_handshake_finished(state->env, *state->env->reply_to, 0,
-                              (char *)material);
-
-      return do_handshake_result_ok(env, state);
+      if (dyn_buff->data_size == 0) {
+        dyn_buff_free(dyn_buff);
+        return do_handshake_result_finished(env, state, (char *)material);
+      } else {
+        UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
+        memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
+        payload->size = (unsigned int)dyn_buff->data_size;
+        payload->type = UNIFEX_PAYLOAD_BINARY,
+        payload->owned = 0;
+        dyn_buff_free(dyn_buff);
+        return do_handshake_result_finished_with_packets(env, state, (char *)material, payload);
+      }
     default:
       DEBUG("SSL ERROR: %d", res);
       return unifex_raise(state->env, "Handshake failed: SSL error");
     }
   }
-  return do_handshake_result_ok(env, state);
-}
-
-UNIFEX_TERM feed(UnifexEnv *env, State *state, UnifexPayload *payload) {
-
-  DEBUG("Feeding: %d", payload->size);
-
-  if (payload->size == 0) {
-    DEBUG("Peer socket shutdown, handshake failed");
-    return unifex_raise(state->env, "Handshake failed: peer shutdown");
-  }
-
-  int bytes = BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
-  if (bytes <= 0) {
-    DEBUG("RBIO: write error");
-    return unifex_raise(state->env, "Handshake failed: read BIO error");
-  }
-
-  DEBUG("RBIO: wrote %d", bytes);
-
-  do_handshake(env, state);
-
-  return feed_result_ok(env, state);
 }
 
 void handle_destroy_state(UnifexEnv *env, State *state) {
