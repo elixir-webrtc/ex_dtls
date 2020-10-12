@@ -2,11 +2,11 @@ defmodule ExDTLS.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/membraneframework/elixir_dtls"
+  @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
     [
-      app: :elixir_dtls,
+      app: :ex_dtls,
       version: @version,
       elixir: "~> 1.10",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
@@ -19,7 +19,7 @@ defmodule ExDTLS.Mixfile do
       package: package(),
 
       # docs
-      name: "ElixirDTLS",
+      name: "ExDTLS",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()

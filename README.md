@@ -1,7 +1,7 @@
-# ElixirDTLS
+# ExDTLS
 
-[![Hex.pm](https://img.shields.io/hexpm/v/elixir_dtls.svg)](https://hex.pm/packages/elixir_dtls)
-[![CircleCI](https://circleci.com/gh/membraneframework/elixir_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/elixir_dtls)
+[![Hex.pm](https://img.shields.io/hexpm/v/ex_dtls.svg)](https://hex.pm/packages/ex_dtls)
+[![CircleCI](https://circleci.com/gh/membraneframework/ex_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/ex_dtls)
 
 Elixir wrapper over [OpenSSL] for performing DTLS handshake (including DTLS-SRTP one).
 
@@ -12,12 +12,12 @@ establish connection via ICE protocol.
 
 ## Installation
 
-The package can be installed by adding `elixir_dtls` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `ex_dtls` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:elixir_dtls, "~> 0.1.0"}
+    {:ex_dtls, "~> 0.1.0"}
   ]
 end
 ```
@@ -37,7 +37,7 @@ You can use for that e.g. a TCP socket, but we will not cover this here.
 
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 ```elixir
-{:ok, packets} = Ex.DTLS.do_handshake(dtls, packets)
+{:ok, packets} = ExDTLS.do_handshake(dtls, packets)
 ```
 As a result we will also get some new  packets that have to passed to the first peer.
 
@@ -47,14 +47,14 @@ message. These packets have to be sent to the second peer, so it can finish its 
 return `{:finished, keying_material}` message.
 
 
-For more complete examples please refer to [membrane_ice_plugin] where we use `elixir_dtls`
+For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`
 or to our integration tests.
 
 ## Copyright and License
 
-Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir_dtls)
+Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=ex_dtls)
 
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir_dtls)
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=ex_dtls)
 
 Licensed under the [Apache License, Version 2.0](LICENSE)
 
