@@ -95,6 +95,6 @@ defmodule ExDTLS do
   defp hex_dump(digest_str) do
     digest_str
     |> :binary.bin_to_list()
-    |> Enum.map_join(":", &:io_lib.format("~2.16.0B", [&1]))
+    |> Enum.map_join(":", &Base.encode16(<<&1>>))
   end
 end
