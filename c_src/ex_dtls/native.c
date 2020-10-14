@@ -106,8 +106,6 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
       UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
       memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
       payload->size = (unsigned int)dyn_buff->data_size;
-      payload->type = UNIFEX_PAYLOAD_BINARY,
-      payload->owned = 0;
       dyn_buff_free(dyn_buff);
       return do_handshake_result_ok(env, state, payload);
     case SSL_ERROR_WANT_WRITE:
@@ -135,8 +133,6 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
         UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
         memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
         payload->size = (unsigned int)dyn_buff->data_size;
-        payload->type = UNIFEX_PAYLOAD_BINARY,
-        payload->owned = 0;
         dyn_buff_free(dyn_buff);
         return do_handshake_result_finished_with_packets(env, state, (char *)material, payload);
       }

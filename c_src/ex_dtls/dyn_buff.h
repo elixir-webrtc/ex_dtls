@@ -8,7 +8,6 @@ typedef struct DynBuff DynBuff;
 struct DynBuff {
     // all sizes are in bytes
     int size;
-    int free_size;
     int data_size;
     char *data;
 };

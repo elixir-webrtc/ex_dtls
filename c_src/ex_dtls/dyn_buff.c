@@ -10,26 +10,22 @@ DynBuff *dyn_buff_new(int size) {
     }
     memset(dyn_buff->data, 0, size);
     dyn_buff->size = size;
-    dyn_buff->free_size = size;
     dyn_buff->data_size = 0;
     return dyn_buff;
 }
 
 void dyn_buff_insert(DynBuff *dyn_buff, char *data, int size) {
-    while(dyn_buff->free_size < size) {
-        int new_size = 2 * dyn_buff->size;
+    if(dyn_buff->size - dyn_buff->data_size < size) {
+        int new_size = 2 * (dyn_buff->data_size + size);
         dyn_buff->data = (char *)realloc(dyn_buff->data,  new_size);
         if (dyn_buff->data == NULL) {
           fprintf(stderr, "Cannot realloc dyn_buff to size: %d bytes", new_size);
           dyn_buff_free(dyn_buff);
           exit(EXIT_FAILURE);
         }
-        dyn_buff->free_size += dyn_buff->size;
         dyn_buff->size = new_size;
     }
-    int pos = dyn_buff->size - dyn_buff->free_size;
-    memcpy(dyn_buff->data + pos, data, size);
-    dyn_buff->free_size -= size;
+    memcpy(dyn_buff->data + dyn_buff->data_size, data, size);
     dyn_buff->data_size += size;
 }
 
