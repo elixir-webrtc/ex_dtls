@@ -51,7 +51,7 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
 }
 
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
-  unsigned char md[EVP_MAX_MD_SIZE];
+  unsigned char md[EVP_MAX_MD_SIZE] = {0};
   unsigned int size;
   if(X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
     get_cert_fingerprint_result_error_failed_to_get_fingerprint(env);
