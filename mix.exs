@@ -1,14 +1,14 @@
-defmodule DTLS do
+defmodule ExDTLS.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/membraneframework/elixir_dtls"
+  @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
     [
-      app: :dtls,
+      app: :ex_dtls,
       version: @version,
-      elixir: "~> 1.10.4",
+      elixir: "~> 1.10",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -19,7 +19,7 @@ defmodule DTLS do
       package: package(),
 
       # docs
-      name: "DTLS",
+      name: "ExDTLS",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()
@@ -38,7 +38,7 @@ defmodule DTLS do
   defp deps do
     [
       {:membrane_core, "~> 0.6.0"},
-      {:unifex, "~> 0.3.1"},
+      {:unifex, git: "https://github.com/membraneframework/unifex.git"},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false}
@@ -62,7 +62,7 @@ defmodule DTLS do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [DTLS]
+      nest_modules_by_prefix: [ExDTLS]
     ]
   end
 end

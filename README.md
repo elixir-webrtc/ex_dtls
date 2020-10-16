@@ -1,32 +1,62 @@
-# ElixirDtls
+# ExDTLS
 
-[![Hex.pm](https://img.shields.io/hexpm/v/elixir_dtls.svg)](https://hex.pm/packages/elixir_dtls)
-[![CircleCI](https://circleci.com/gh/membraneframework/elixir_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/elixir_dtls)
+[![Hex.pm](https://img.shields.io/hexpm/v/ex_dtls.svg)](https://hex.pm/packages/ex_dtls)
+[![CircleCI](https://circleci.com/gh/membraneframework/ex_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/ex_dtls)
 
 Elixir wrapper over [OpenSSL] for performing DTLS handshake (including DTLS-SRTP one).
 
+ElixirDTLS allows user to perform DTLS handshake (including DTLS-SRTP one) without requiring
+any socket. Instead, it generates DTLS packets that user has to transport to the peer.
+Thanks to this DTLS handshake can be performed on the third party socket e.g. one used to
+establish connection via ICE protocol.
+
 ## Installation
 
-The package can be installed by adding `elixir_dtls` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `ex_dtls` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:elixir_dtls, "~> 0.1.0"}
+    {:ex_dtls, "~> 0.1.0"}
   ]
 end
 ```
 
 ## Usage
+Init `ExDTLS` on both peers with:
+```elixir
+{:ok, dtls} = ExDTLS.start_link(client_mode, dtls_srtp)
+```
 
-TODO
+On a peer running in a client mode start performing DTLS handshake
+```elixir
+{:ok, packets} = ExDTLS.do_handshake(dtls)
+```
+This will generate initial handshake packets. Now we have to pass them on the second peer.
+You can use for that e.g. a TCP socket, but we will not cover this here.
+
+After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
+```elixir
+{:ok, packets} = ExDTLS.do_handshake(dtls, packets)
+```
+As a result we will also get some new  packets that have to passed to the first peer.
+
+After some back and forth DTLS handshake should be finished successfully.
+Peer that finishes handshake first will return `{:finished_with_packets, keying_material, packets}`
+message. These packets have to be sent to the second peer, so it can finish its handshake too and
+return `{:finished, keying_material}` message.
+
+
+For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`
+or to our integration tests.
 
 ## Copyright and License
 
-Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir_dtls)
+Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=ex_dtls)
 
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir_dtls)
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=ex_dtls)
 
 Licensed under the [Apache License, Version 2.0](LICENSE)
 
 [OpenSSL]: https://www.openssl.org/
+[membrane_ice_plugin]: https://github.com/membraneframework/membrane_ice_plugin
