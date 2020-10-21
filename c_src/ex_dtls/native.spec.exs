@@ -10,5 +10,12 @@ spec get_cert_fingerprint(state) :: {:ok :: label, state, fingerprint :: string}
                                     | {:error :: label, :failed_to_get_fingerprint :: label}
 
 spec do_handshake(state, packets :: payload) :: {:ok :: label, state, packets :: payload}
-                            | {:finished_with_packets :: label, state, keying_material :: string, packets :: payload}
-                            | {:finished :: label, state, keying_material :: string}
+                            | {:finished_with_packets :: label, state,
+                                client_keying_material :: payload,
+                                server_keying_material :: payload,
+                                protection_profile :: int,
+                                packets :: payload}
+                            | {:finished :: label, state,
+                                client_keying_material :: payload,
+                                server_keying_material :: payload,
+                                protection_profile :: int}

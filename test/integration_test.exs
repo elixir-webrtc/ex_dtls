@@ -22,7 +22,7 @@ defmodule ExDTLSTest do
       {:ok, packets} ->
         loop({pid2, state2}, {pid1, state1}, packets)
 
-      {:finished_with_packets, _keying_material, packets} ->
+      {:finished_with_packets, _handshake_data, packets} ->
         loop({pid2, state2}, {pid1, true}, packets)
     end
   end

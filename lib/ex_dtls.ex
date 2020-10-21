@@ -32,6 +32,11 @@ defmodule ExDTLS do
           dtls_srtp: boolean()
         ]
 
+  @type protection_profile_t() :: 0x01 | 0x02 | 0x07 | 0x08
+
+  @type handshake_data_t ::
+          {keying_material :: binary(), protection_profile :: protection_profile_t()}
+
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
   """
@@ -62,8 +67,8 @@ defmodule ExDTLS do
   """
   @spec do_handshake(pid :: pid(), packets :: binary()) ::
           {:ok, packets :: binary()}
-          | {:finished_with_packets, keying_material :: binary(), packets :: binary()}
-          | {:finished, keying_material :: binary()}
+          | {:finished_with_packets, handshake_data_t(), packets :: binary()}
+          | {:finished, handshake_data_t()}
   def do_handshake(pid, packets \\ <<>>) do
     GenServer.call(pid, {:do_handshake, packets})
   end
@@ -82,7 +87,19 @@ defmodule ExDTLS do
   @impl true
   def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
-    {:reply, msg, state}
+
+    case msg do
+      {:ok, _packets} ->
+        {:reply, msg, state}
+
+      {:finished_with_packets, client_keying_material, server_keying_material, protection_profile, packets} ->
+        msg = {:finished_with_packets, {client_keying_material, server_keying_material, protection_profile}, packets}
+        {:reply, msg, state}
+
+      {:finished, client_keying_material, server_keying_material, protection_profile} ->
+        msg = {:finished, {client_keying_material, server_keying_material, protection_profile}}
+        {:reply, msg, state}
+    end
   end
 
   @doc false

@@ -119,22 +119,29 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
       */
       DEBUG("Handshake finished successfully");
 
-      unsigned char *material = export_keying_material(state->ssl);
-      if (material == NULL) {
+      KeyingMaterial *keying_material = export_keying_material(state->ssl);
+      if (keying_material == NULL) {
         DEBUG("Cannot export keying material");
         exit(EXIT_FAILURE);
       }
 
-      DEBUG("Keying material %s", material);
+      UnifexPayload *client_keying_material = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, keying_material->len);
+      memcpy(client_keying_material->data, keying_material->client, keying_material->len);
+      client_keying_material->size = keying_material->len;
+
+      UnifexPayload *server_keying_material = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, keying_material->len);
+      memcpy(server_keying_material->data, keying_material->server, keying_material->len);
+      server_keying_material->size = keying_material->len;
+
       if (dyn_buff->data_size == 0) {
         dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished(env, state, (char *)material);
+        return do_handshake_result_finished(env, state, client_keying_material, server_keying_material, keying_material->protection_profile);
       } else {
         UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
         memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
         payload->size = (unsigned int)dyn_buff->data_size;
         dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished_with_packets(env, state, (char *)material, payload);
+        return do_handshake_result_finished_with_packets(env, state, client_keying_material, server_keying_material, keying_material->protection_profile, payload);
       }
     default:
       DEBUG("SSL ERROR: %d", res);

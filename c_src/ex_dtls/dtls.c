@@ -54,11 +54,11 @@ SSL *create_ssl(SSL_CTX *ssl_ctx, int client_mode) {
   return ssl;
 }
 
-unsigned char *export_keying_material(SSL *ssl) {
-  SRTP_PROTECTION_PROFILE *srtp_profile = SSL_get_selected_srtp_profile(ssl);
+KeyingMaterial *export_keying_material(SSL *ssl) {
+  SRTP_PROTECTION_PROFILE *profile = SSL_get_selected_srtp_profile(ssl);
   int master_key_len;
   int master_salt_len;
-  switch (srtp_profile->id) {
+  switch (profile->id) {
   // Refer to RFC 3711 section 8.2
   case SRTP_AES128_CM_SHA1_80:
     master_key_len = 16;
@@ -89,10 +89,23 @@ unsigned char *export_keying_material(SSL *ssl) {
   int res = SSL_export_keying_material(ssl, material, len,
                                        "EXTRACTOR-dtls_srtp", 19, NULL, 0, 0);
   if (res != 1) {
+    free(material);
     return NULL;
   }
+  DEBUG("Keying material %s", material);
 
-  return material;
+  KeyingMaterial *keying_material;
+  keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
+  keying_material->client = (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  keying_material->server = (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+
+  memcpy(keying_material->client, material, len / 2);
+  memcpy(keying_material->server, material + (len / 2), len / 2);
+  keying_material->protection_profile = profile->id;
+  keying_material->len = len / 2;
+
+  free(material);
+  return keying_material;
 }
 
 EVP_PKEY *gen_key() {
