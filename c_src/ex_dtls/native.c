@@ -3,8 +3,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "native.h"
 #include "dyn_buff.h"
+#include "native.h"
 
 #define BUF_LEN 2048
 
@@ -53,7 +53,7 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   unsigned char md[EVP_MAX_MD_SIZE] = {0};
   unsigned int size;
-  if(X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
+  if (X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
     get_cert_fingerprint_result_error_failed_to_get_fingerprint(env);
   }
   return get_cert_fingerprint_result_ok(env, state, (char *)md);
@@ -102,8 +102,10 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
     case SSL_ERROR_WANT_READ:
       DEBUG("SSL WANT READ");
       state->SSL_error = SSL_ERROR_WANT_READ;
-      // break and wait for data from remote host. It will come in feed() function.
-      UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
+      // break and wait for data from remote host. It will come in feed()
+      // function.
+      UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
+          env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
       memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
       payload->size = (unsigned int)dyn_buff->data_size;
       dyn_buff_free(dyn_buff);
@@ -125,23 +127,31 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
         exit(EXIT_FAILURE);
       }
 
-      UnifexPayload *client_keying_material = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, keying_material->len);
-      memcpy(client_keying_material->data, keying_material->client, keying_material->len);
-      client_keying_material->size = keying_material->len;
+      int len = keying_material->len;
+      UnifexPayload *client_keying_material =
+          (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+      memcpy(client_keying_material->data, keying_material->client, len);
+      client_keying_material->size = len;
 
-      UnifexPayload *server_keying_material = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, keying_material->len);
-      memcpy(server_keying_material->data, keying_material->server, keying_material->len);
-      server_keying_material->size = keying_material->len;
+      UnifexPayload *server_keying_material =
+          (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+      memcpy(server_keying_material->data, keying_material->server, len);
+      server_keying_material->size = len;
 
       if (dyn_buff->data_size == 0) {
         dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished(env, state, client_keying_material, server_keying_material, keying_material->protection_profile);
+        return do_handshake_result_finished(
+            env, state, client_keying_material, server_keying_material,
+            keying_material->protection_profile);
       } else {
-        UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
+        UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
+            env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
         memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
         payload->size = (unsigned int)dyn_buff->data_size;
         dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished_with_packets(env, state, client_keying_material, server_keying_material, keying_material->protection_profile, payload);
+        return do_handshake_result_finished_with_packets(
+            env, state, client_keying_material, server_keying_material,
+            keying_material->protection_profile, payload);
       }
     default:
       DEBUG("SSL ERROR: %d", res);

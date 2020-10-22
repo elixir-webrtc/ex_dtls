@@ -96,8 +96,10 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
 
   KeyingMaterial *keying_material;
   keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
-  keying_material->client = (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
-  keying_material->server = (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  keying_material->client =
+      (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  keying_material->server =
+      (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
 
   memcpy(keying_material->client, material, len / 2);
   memcpy(keying_material->server, material + (len / 2), len / 2);
@@ -169,11 +171,9 @@ X509 *gen_cert(EVP_PKEY *pkey) {
   if (X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char *)"PL",
                                  -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC,
-                                 (unsigned char *)"ExDTLS", -1, -1,
-                                 0) == 0 ||
+                                 (unsigned char *)"ExDTLS", -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                                 (unsigned char *)"ExDTLS", -1, -1,
-                                 0) == 0) {
+                                 (unsigned char *)"ExDTLS", -1, -1, 0) == 0) {
     DEBUG("Cannot set cert name");
     return NULL;
   }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <unifex/unifex.h>
 #include "dtls.h"
+#include <unifex/unifex.h>
 
 typedef struct State State;
 

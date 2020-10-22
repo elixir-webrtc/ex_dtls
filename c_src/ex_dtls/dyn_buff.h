@@ -6,10 +6,10 @@
 
 typedef struct DynBuff DynBuff;
 struct DynBuff {
-    // all sizes are in bytes
-    int size;
-    int data_size;
-    char *data;
+  // all sizes are in bytes
+  int size;
+  int data_size;
+  char *data;
 };
 
 DynBuff *dyn_buff_new(int size);

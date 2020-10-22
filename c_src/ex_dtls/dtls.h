@@ -1,10 +1,10 @@
 #pragma once
 
-#include <string.h>
-#include <openssl/ssl.h>
 #include <openssl/err.h>
-#include <openssl/x509.h>
 #include <openssl/rsa.h>
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+#include <string.h>
 
 typedef struct KeyingMaterial {
   unsigned char *client; // client keying material - master key + master salt

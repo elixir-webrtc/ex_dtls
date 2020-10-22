@@ -92,12 +92,15 @@ defmodule ExDTLS do
       {:ok, _packets} ->
         {:reply, msg, state}
 
-      {:finished_with_packets, client_keying_material, server_keying_material, protection_profile, packets} ->
-        msg = {:finished_with_packets, {client_keying_material, server_keying_material, protection_profile}, packets}
+      {:finished_with_packets, client_keying_material, server_keying_material, protection_profile,
+       packets} ->
+        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        msg = {:finished_with_packets, handshake_data, packets}
         {:reply, msg, state}
 
       {:finished, client_keying_material, server_keying_material, protection_profile} ->
-        msg = {:finished, {client_keying_material, server_keying_material, protection_profile}}
+        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        msg = {:finished, handshake_data}
         {:reply, msg, state}
     end
   end
