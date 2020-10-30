@@ -32,10 +32,23 @@ defmodule ExDTLS do
           dtls_srtp: boolean()
         ]
 
+  @typedoc """
+  Supported protection profiles.
+
+  For meaning of these values please refer to
+  https://www.iana.org/assignments/srtp-protection/srtp-protection.xhtml
+  """
   @type protection_profile_t() :: 0x01 | 0x02 | 0x07 | 0x08
 
+  @typedoc """
+  Type describing data returned after successful handshake.
+
+  Both client and server keying materials consist of `master key` and `master salt`.
+  `client_keying_material` belongs to a peer working in a `client_mode`.
+  """
   @type handshake_data_t ::
-          {keying_material :: binary(), protection_profile :: protection_profile_t()}
+          {client_keying_material :: binary(), server_keying_material :: binary(),
+           protection_profile :: protection_profile_t()}
 
   @doc """
   Starts ExDTLS GenServer process linked to the current process.

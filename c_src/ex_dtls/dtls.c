@@ -96,13 +96,20 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
 
   KeyingMaterial *keying_material;
   keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
+  memset(keying_material, 0, sizeof(KeyingMaterial));
   keying_material->client =
       (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
   keying_material->server =
       (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  memset(keying_material->client, 0, len / 2);
+  memset(keying_material->server, 0, len / 2);
 
-  memcpy(keying_material->client, material, len / 2);
-  memcpy(keying_material->server, material + (len / 2), len / 2);
+  memcpy(keying_material->client, material, master_key_len);
+  memcpy(keying_material->server, material + master_key_len, master_key_len);
+  memcpy(keying_material->client + master_key_len,
+         material + 2 * master_key_len, master_salt_len);
+  memcpy(keying_material->server + master_key_len,
+         material + 2 * master_key_len + master_salt_len, master_salt_len);
   keying_material->protection_profile = profile->id;
   keying_material->len = len / 2;
 

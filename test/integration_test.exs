@@ -13,7 +13,7 @@ defmodule ExDTLSTest do
   end
 
   defp loop({pid1, false}, {pid2, true}, packets) do
-    {:finished, _keying_material} = ExDTLS.do_handshake(pid1, packets)
+    {:finished, _handshake_data} = ExDTLS.do_handshake(pid1, packets)
     loop({pid2, true}, {pid1, true}, nil)
   end
 
