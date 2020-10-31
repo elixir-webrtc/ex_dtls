@@ -1,4 +1,4 @@
-defmodule ExDTLSTest do
+defmodule ExDTLS.IntegrationTest do
   use ExUnit.Case, async: true
 
   test "dtls-srtp" do

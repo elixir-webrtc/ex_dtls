@@ -61,7 +61,7 @@ defmodule ExDTLS do
   @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
-  @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: String.t()}
+  @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: binary()}
   def get_cert_fingerprint(pid) do
     GenServer.call(pid, :get_cert_fingerprint)
   end
@@ -122,12 +122,6 @@ defmodule ExDTLS do
   @impl true
   def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
-    {:reply, {:ok, hex_dump(digest)}, state}
-  end
-
-  defp hex_dump(digest_str) do
-    digest_str
-    |> :binary.bin_to_list()
-    |> Enum.map_join(":", &Base.encode16(<<&1>>))
+    {:reply, {:ok, digest}, state}
   end
 end

@@ -64,9 +64,15 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   unsigned char md[EVP_MAX_MD_SIZE] = {0};
   unsigned int size;
   if (X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
-    get_cert_fingerprint_result_error_failed_to_get_fingerprint(env);
+    return unifex_raise(env, "Can't get cert fingerprint");
   }
-  return get_cert_fingerprint_result_ok(env, state, (char *)md);
+  UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
+            env, UNIFEX_PAYLOAD_BINARY, size);
+  memcpy(payload->data, md, size);
+  payload->size = size;
+  UNIFEX_TERM res_term = get_cert_fingerprint_result_ok(env, state, payload);
+  unifex_payload_release(payload);
+  return res_term;
 }
 
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
