@@ -14,4 +14,4 @@ struct DynBuff {
 
 DynBuff *dyn_buff_new(int size);
 void dyn_buff_free(DynBuff *dyn_buff);
-void dyn_buff_insert(DynBuff *dyn_buff, char *data, int size);
+int dyn_buff_insert(DynBuff *dyn_buff, char *data, int size);

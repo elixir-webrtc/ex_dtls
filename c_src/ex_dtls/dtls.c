@@ -85,7 +85,7 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
   // Refer to RFC 5764 section 4.2
   int len = 2 * (master_key_len + master_salt_len);
   unsigned char *material = (unsigned char *)malloc(len * sizeof(char));
-  memset(material, 0, len);
+  memset(material, 0, len * sizeof(char));
   int res = SSL_export_keying_material(ssl, material, len,
                                        "EXTRACTOR-dtls_srtp", 19, NULL, 0, 0);
   if (res != 1) {
@@ -101,15 +101,18 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
       (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
   keying_material->server =
       (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
-  memset(keying_material->client, 0, len / 2);
-  memset(keying_material->server, 0, len / 2);
+  memset(keying_material->client, 0, len / 2 * sizeof(unsigned char));
+  memset(keying_material->server, 0, len / 2 * sizeof(unsigned char));
 
-  memcpy(keying_material->client, material, master_key_len);
-  memcpy(keying_material->server, material + master_key_len, master_key_len);
-  memcpy(keying_material->client + master_key_len,
-         material + 2 * master_key_len, master_salt_len);
-  memcpy(keying_material->server + master_key_len,
-         material + 2 * master_key_len + master_salt_len, master_salt_len);
+  unsigned char *position = material;
+  memcpy(keying_material->client, position, master_key_len);
+  position += master_key_len;
+  memcpy(keying_material->server, position, master_key_len);
+  position += master_key_len;
+  memcpy(keying_material->client + master_key_len, position, master_salt_len);
+  position += master_salt_len;
+  memcpy(keying_material->server + master_key_len, position, master_salt_len);
+  position = NULL;
   keying_material->protection_profile = profile->id;
   keying_material->len = len / 2;
 

@@ -13,41 +13,51 @@
   fflush(stdout);
 
 UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
+  UNIFEX_TERM res_term;
   State *state = unifex_alloc_state(env);
   state->env = env;
 
   state->ssl_ctx = create_ctx(dtls_srtp);
   if (state->ssl_ctx == NULL) {
-    return unifex_raise(env, "Cannot create ssl_ctx");
+    res_term = unifex_raise(env, "Cannot create ssl_ctx");
+    goto exit;
   }
 
   state->pkey = gen_key();
   if (state->pkey == NULL) {
-    return unifex_raise(env, "Cannot generate key pair");
-  }
+    res_term = unifex_raise(env, "Cannot generate key pair");
+    goto exit;
+}
 
   if (SSL_CTX_use_PrivateKey(state->ssl_ctx, state->pkey) != 1) {
-    return unifex_raise(env, "Cannot set private key");
+    res_term = unifex_raise(env, "Cannot set private key");
+    goto exit;
   }
 
   state->x509 = gen_cert(state->pkey);
   if (state->x509 == NULL) {
-    return unifex_raise(env, "Cannot generate cert");
-  }
+    res_term = unifex_raise(env, "Cannot generate cert");
+    goto exit;
+}
 
   if (SSL_CTX_use_certificate(state->ssl_ctx, state->x509) != 1) {
-    return unifex_raise(env, "Cannot set cert");
+    res_term = unifex_raise(env, "Cannot set cert");
+    goto exit;
   }
 
   state->ssl = create_ssl(state->ssl_ctx, client_mode);
   if (state->ssl == NULL) {
-    return unifex_raise(env, "Cannot create ssl");
+    res_term = unifex_raise(env, "Cannot create ssl");
+    goto exit;
   }
 
   state->client_mode = client_mode;
   state->SSL_error = SSL_ERROR_NONE;
+  res_term = init_result_ok(env, state);
 
-  return init_result_ok(env, state);
+exit:
+  unifex_release_state(env, state);
+  return res_term;
 }
 
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
@@ -61,6 +71,9 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
 
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
   DynBuff *dyn_buff = dyn_buff_new(1024);
+  if (dyn_buff == NULL) {
+    return unifex_raise(env, "Handshake failed: can't create new dyn_buff");
+  }
 
   if (payload->size != 0) {
     DEBUG("Feeding: %d", payload->size);
@@ -89,7 +102,9 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
         DEBUG("WBIO: read error");
         return unifex_raise(state->env, "Handshake failed: write BIO error");
       } else {
-        dyn_buff_insert(dyn_buff, data, read_bytes);
+        if (dyn_buff_insert(dyn_buff, data, read_bytes) == -1) {
+           return unifex_raise(state->env, "Handshake failed: can't insert to dyn_buff");
+        }
       }
 
       DEBUG("WBIO: read: %d bytes", read_bytes);
@@ -108,8 +123,10 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
           env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
       memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
       payload->size = (unsigned int)dyn_buff->data_size;
+      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, payload);
       dyn_buff_free(dyn_buff);
-      return do_handshake_result_ok(env, state, payload);
+      unifex_payload_release(payload);
+      return res_term;
     case SSL_ERROR_WANT_WRITE:
       DEBUG("SSL WANT WRITE");
       break;
@@ -139,19 +156,26 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
       server_keying_material->size = len;
 
       if (dyn_buff->data_size == 0) {
-        dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished(
+        UNIFEX_TERM res_term = do_handshake_result_finished(
             env, state, client_keying_material, server_keying_material,
             keying_material->protection_profile);
+        dyn_buff_free(dyn_buff);
+        unifex_payload_release(client_keying_material);
+        unifex_payload_release(server_keying_material);
+        return res_term;
       } else {
         UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
             env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
         memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
         payload->size = (unsigned int)dyn_buff->data_size;
-        dyn_buff_free(dyn_buff);
-        return do_handshake_result_finished_with_packets(
+        UNIFEX_TERM res_term = do_handshake_result_finished_with_packets(
             env, state, client_keying_material, server_keying_material,
             keying_material->protection_profile, payload);
+        dyn_buff_free(dyn_buff);
+        unifex_payload_release(payload);
+        unifex_payload_release(client_keying_material);
+        unifex_payload_release(server_keying_material);
+        return res_term;
       }
     default:
       DEBUG("SSL ERROR: %d", res);

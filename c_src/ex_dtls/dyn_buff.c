@@ -4,9 +4,8 @@ DynBuff *dyn_buff_new(int size) {
   DynBuff *dyn_buff = (DynBuff *)malloc(sizeof(DynBuff));
   dyn_buff->data = (char *)malloc(size * sizeof(char));
   if (dyn_buff->data == NULL) {
-    fprintf(stderr, "Cannot allocate new dyn_buff with size: %d bytes", size);
     free(dyn_buff);
-    exit(EXIT_FAILURE);
+    return NULL;
   }
   memset(dyn_buff->data, 0, size);
   dyn_buff->size = size;
@@ -14,19 +13,20 @@ DynBuff *dyn_buff_new(int size) {
   return dyn_buff;
 }
 
-void dyn_buff_insert(DynBuff *dyn_buff, char *data, int size) {
+int dyn_buff_insert(DynBuff *dyn_buff, char *data, int size) {
   if (dyn_buff->size - dyn_buff->data_size < size) {
     int new_size = 2 * (dyn_buff->data_size + size);
-    dyn_buff->data = (char *)realloc(dyn_buff->data, new_size);
-    if (dyn_buff->data == NULL) {
-      fprintf(stderr, "Cannot realloc dyn_buff to size: %d bytes", new_size);
+    char *new_data = (char *)realloc(dyn_buff->data, new_size);
+    if (new_data == NULL) {
       dyn_buff_free(dyn_buff);
-      exit(EXIT_FAILURE);
+      return -1;
     }
+    dyn_buff->data = new_data;
     dyn_buff->size = new_size;
   }
   memcpy(dyn_buff->data + dyn_buff->data_size, data, size);
   dyn_buff->data_size += size;
+  return 0;
 }
 
 void dyn_buff_free(DynBuff *dyn_buff) { free(dyn_buff->data); }
