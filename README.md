@@ -40,7 +40,7 @@ After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 ```elixir
 {:ok, packets} = ExDTLS.do_handshake(dtls, packets)
 ```
-As a result we will also get some new packets that have to passed to the first peer.
+As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
 Peer that finishes handshake first will return `{:finished_with_packets, handshake_data, packets}`
