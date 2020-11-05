@@ -125,13 +125,13 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
       state->SSL_error = SSL_ERROR_WANT_READ;
       // break and wait for data from remote host. It will come in feed()
       // function.
-      UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
+      UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
           env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
-      memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
-      payload->size = (unsigned int)dyn_buff->data_size;
-      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, payload);
+      memcpy(gen_packets->data, dyn_buff->data, dyn_buff->data_size);
+      gen_packets->size = (unsigned int)dyn_buff->data_size;
+      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, gen_packets);
       dyn_buff_free(dyn_buff);
-      unifex_payload_release(payload);
+      unifex_payload_release(gen_packets);
       return res_term;
     case SSL_ERROR_WANT_WRITE:
       DEBUG("SSL WANT WRITE");
@@ -147,7 +147,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
       KeyingMaterial *keying_material = export_keying_material(state->ssl);
       if (keying_material == NULL) {
         DEBUG("Cannot export keying material");
-        exit(EXIT_FAILURE);
+        return unifex_raise(env, "Handshake failed: cannot export keying material");
       }
 
       int len = keying_material->len;
@@ -170,22 +170,22 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
         unifex_payload_release(server_keying_material);
         return res_term;
       } else {
-        UnifexPayload *payload = (UnifexPayload *)unifex_payload_alloc(
+        UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
             env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
-        memcpy(payload->data, dyn_buff->data, dyn_buff->data_size);
-        payload->size = (unsigned int)dyn_buff->data_size;
+        memcpy(gen_packets->data, dyn_buff->data, dyn_buff->data_size);
+        gen_packets->size = (unsigned int)dyn_buff->data_size;
         UNIFEX_TERM res_term = do_handshake_result_finished_with_packets(
             env, state, client_keying_material, server_keying_material,
-            keying_material->protection_profile, payload);
+            keying_material->protection_profile, gen_packets);
         dyn_buff_free(dyn_buff);
-        unifex_payload_release(payload);
+        unifex_payload_release(gen_packets);
         unifex_payload_release(client_keying_material);
         unifex_payload_release(server_keying_material);
         return res_term;
       }
     default:
       DEBUG("SSL ERROR: %d", res);
-      return unifex_raise(state->env, "Handshake failed: SSL error");
+      return unifex_raise(env, "Handshake failed: SSL error");
     }
   }
 }
