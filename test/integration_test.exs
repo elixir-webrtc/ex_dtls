@@ -1,4 +1,4 @@
-defmodule ExDTLSTest do
+defmodule ExDTLS.IntegrationTest do
   use ExUnit.Case, async: true
 
   test "dtls-srtp" do
@@ -13,7 +13,7 @@ defmodule ExDTLSTest do
   end
 
   defp loop({pid1, false}, {pid2, true}, packets) do
-    {:finished, _keying_material} = ExDTLS.do_handshake(pid1, packets)
+    {:finished, _handshake_data} = ExDTLS.do_handshake(pid1, packets)
     loop({pid2, true}, {pid1, true}, nil)
   end
 
@@ -22,7 +22,7 @@ defmodule ExDTLSTest do
       {:ok, packets} ->
         loop({pid2, state2}, {pid1, state1}, packets)
 
-      {:finished_with_packets, _keying_material, packets} ->
+      {:finished_with_packets, _handshake_data, packets} ->
         loop({pid2, state2}, {pid1, true}, packets)
     end
   end

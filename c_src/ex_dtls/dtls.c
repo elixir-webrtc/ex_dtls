@@ -54,11 +54,11 @@ SSL *create_ssl(SSL_CTX *ssl_ctx, int client_mode) {
   return ssl;
 }
 
-unsigned char *export_keying_material(SSL *ssl) {
-  SRTP_PROTECTION_PROFILE *srtp_profile = SSL_get_selected_srtp_profile(ssl);
+KeyingMaterial *export_keying_material(SSL *ssl) {
+  SRTP_PROTECTION_PROFILE *profile = SSL_get_selected_srtp_profile(ssl);
   int master_key_len;
   int master_salt_len;
-  switch (srtp_profile->id) {
+  switch (profile->id) {
   // Refer to RFC 3711 section 8.2
   case SRTP_AES128_CM_SHA1_80:
     master_key_len = 16;
@@ -85,14 +85,39 @@ unsigned char *export_keying_material(SSL *ssl) {
   // Refer to RFC 5764 section 4.2
   int len = 2 * (master_key_len + master_salt_len);
   unsigned char *material = (unsigned char *)malloc(len * sizeof(char));
-  memset(material, 0, len);
+  memset(material, 0, len * sizeof(char));
   int res = SSL_export_keying_material(ssl, material, len,
                                        "EXTRACTOR-dtls_srtp", 19, NULL, 0, 0);
   if (res != 1) {
+    free(material);
     return NULL;
   }
+  DEBUG("Keying material %s", material);
 
-  return material;
+  KeyingMaterial *keying_material;
+  keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
+  memset(keying_material, 0, sizeof(KeyingMaterial));
+  keying_material->client =
+      (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  keying_material->server =
+      (unsigned char *)malloc(len / 2 * sizeof(unsigned char));
+  memset(keying_material->client, 0, len / 2 * sizeof(unsigned char));
+  memset(keying_material->server, 0, len / 2 * sizeof(unsigned char));
+
+  unsigned char *position = material;
+  memcpy(keying_material->client, position, master_key_len);
+  position += master_key_len;
+  memcpy(keying_material->server, position, master_key_len);
+  position += master_key_len;
+  memcpy(keying_material->client + master_key_len, position, master_salt_len);
+  position += master_salt_len;
+  memcpy(keying_material->server + master_key_len, position, master_salt_len);
+  position = NULL;
+  keying_material->protection_profile = profile->id;
+  keying_material->len = len / 2;
+
+  free(material);
+  return keying_material;
 }
 
 EVP_PKEY *gen_key() {
@@ -156,11 +181,9 @@ X509 *gen_cert(EVP_PKEY *pkey) {
   if (X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char *)"PL",
                                  -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC,
-                                 (unsigned char *)"ExDTLS", -1, -1,
-                                 0) == 0 ||
+                                 (unsigned char *)"ExDTLS", -1, -1, 0) == 0 ||
       X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                                 (unsigned char *)"ExDTLS", -1, -1,
-                                 0) == 0) {
+                                 (unsigned char *)"ExDTLS", -1, -1, 0) == 0) {
     DEBUG("Cannot set cert name");
     return NULL;
   }

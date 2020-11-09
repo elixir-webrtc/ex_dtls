@@ -1,6 +1,7 @@
 # ExDTLS
 
 [![Hex.pm](https://img.shields.io/hexpm/v/ex_dtls.svg)](https://hex.pm/packages/ex_dtls)
+[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/ex_dtls/)
 [![CircleCI](https://circleci.com/gh/membraneframework/ex_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/ex_dtls)
 
 Elixir wrapper over [OpenSSL] for performing DTLS handshake (including DTLS-SRTP one).
@@ -39,12 +40,12 @@ After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 ```elixir
 {:ok, packets} = ExDTLS.do_handshake(dtls, packets)
 ```
-As a result we will also get some new  packets that have to passed to the first peer.
+As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
-Peer that finishes handshake first will return `{:finished_with_packets, keying_material, packets}`
+Peer that finishes handshake first will return `{:finished_with_packets, handshake_data, packets}`
 message. These packets have to be sent to the second peer, so it can finish its handshake too and
-return `{:finished, keying_material}` message.
+return `{:finished, handshake_data}` message.
 
 
 For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`

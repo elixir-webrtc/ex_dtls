@@ -32,6 +32,24 @@ defmodule ExDTLS do
           dtls_srtp: boolean()
         ]
 
+  @typedoc """
+  Supported protection profiles.
+
+  For meaning of these values please refer to
+  https://www.iana.org/assignments/srtp-protection/srtp-protection.xhtml
+  """
+  @type protection_profile_t() :: 0x01 | 0x02 | 0x07 | 0x08
+
+  @typedoc """
+  Type describing data returned after successful handshake.
+
+  Both client and server keying materials consist of `master key` and `master salt`.
+  `client_keying_material` belongs to a peer working in a `client_mode`.
+  """
+  @type handshake_data_t ::
+          {client_keying_material :: binary(), server_keying_material :: binary(),
+           protection_profile :: protection_profile_t()}
+
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
   """
@@ -43,7 +61,7 @@ defmodule ExDTLS do
   @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
-  @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: String.t()}
+  @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: binary()}
   def get_cert_fingerprint(pid) do
     GenServer.call(pid, :get_cert_fingerprint)
   end
@@ -62,8 +80,8 @@ defmodule ExDTLS do
   """
   @spec do_handshake(pid :: pid(), packets :: binary()) ::
           {:ok, packets :: binary()}
-          | {:finished_with_packets, keying_material :: binary(), packets :: binary()}
-          | {:finished, keying_material :: binary()}
+          | {:finished_with_packets, handshake_data_t(), packets :: binary()}
+          | {:finished, handshake_data_t()}
   def do_handshake(pid, packets \\ <<>>) do
     GenServer.call(pid, {:do_handshake, packets})
   end
@@ -82,19 +100,28 @@ defmodule ExDTLS do
   @impl true
   def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
-    {:reply, msg, state}
+
+    case msg do
+      {:ok, _packets} ->
+        {:reply, msg, state}
+
+      {:finished_with_packets, client_keying_material, server_keying_material, protection_profile,
+       packets} ->
+        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        msg = {:finished_with_packets, handshake_data, packets}
+        {:reply, msg, state}
+
+      {:finished, client_keying_material, server_keying_material, protection_profile} ->
+        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        msg = {:finished, handshake_data}
+        {:reply, msg, state}
+    end
   end
 
   @doc false
   @impl true
   def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
-    {:reply, {:ok, hex_dump(digest)}, state}
-  end
-
-  defp hex_dump(digest_str) do
-    digest_str
-    |> :binary.bin_to_list()
-    |> Enum.map_join(":", &Base.encode16(<<&1>>))
+    {:reply, {:ok, digest}, state}
   end
 end
