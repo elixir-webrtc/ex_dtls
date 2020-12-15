@@ -15,9 +15,11 @@ defmodule ExDTLS do
     @moduledoc false
 
     @type t :: %__MODULE__{
-            cnode: Unifex.CNode.t()
+            cnode: Unifex.CNode.t(),
+            client_mode: boolean()
           }
-    defstruct cnode: nil
+    defstruct cnode: nil,
+              client_mode: false
   end
 
   @typedoc """
@@ -43,11 +45,10 @@ defmodule ExDTLS do
   @typedoc """
   Type describing data returned after successful handshake.
 
-  Both client and server keying materials consist of `master key` and `master salt`.
-  `client_keying_material` belongs to a peer working in a `client_mode`.
+  Both local and remote keying materials consist of `master key` and `master salt`.
   """
   @type handshake_data_t ::
-          {client_keying_material :: binary(), server_keying_material :: binary(),
+          {local_keying_material :: binary(), remote_keying_material :: binary(),
            protection_profile :: protection_profile_t()}
 
   @doc """
@@ -92,7 +93,7 @@ defmodule ExDTLS do
   def init(opts) do
     {:ok, pid} = Unifex.CNode.start_link(:native)
     :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
-    state = %State{cnode: pid}
+    state = %State{cnode: pid, client_mode: opts[:client_mode]}
     {:ok, state}
   end
 
@@ -107,12 +108,26 @@ defmodule ExDTLS do
 
       {:finished_with_packets, client_keying_material, server_keying_material, protection_profile,
        packets} ->
-        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        {local_km, remote_km} =
+          get_local_and_remote_km(
+            client_keying_material,
+            server_keying_material,
+            state.client_mode
+          )
+
+        handshake_data = {local_km, remote_km, protection_profile}
         msg = {:finished_with_packets, handshake_data, packets}
         {:reply, msg, state}
 
       {:finished, client_keying_material, server_keying_material, protection_profile} ->
-        handshake_data = {client_keying_material, server_keying_material, protection_profile}
+        {local_km, remote_km} =
+          get_local_and_remote_km(
+            client_keying_material,
+            server_keying_material,
+            state.client_mode
+          )
+
+        handshake_data = {local_km, remote_km, protection_profile}
         msg = {:finished, handshake_data}
         {:reply, msg, state}
     end
@@ -124,4 +139,10 @@ defmodule ExDTLS do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
     {:reply, {:ok, digest}, state}
   end
+
+  defp get_local_and_remote_km(client_keying_material, server_keying_material, true),
+    do: {client_keying_material, server_keying_material}
+
+  defp get_local_and_remote_km(client_keying_material, server_keying_material, false),
+    do: {server_keying_material, client_keying_material}
 end
