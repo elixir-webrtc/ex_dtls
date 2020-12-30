@@ -4,7 +4,7 @@
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/ex_dtls/)
 [![CircleCI](https://circleci.com/gh/membraneframework/ex_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/ex_dtls)
 
-Elixir wrapper over [OpenSSL] for performing DTLS handshake (including DTLS-SRTP one).
+DTLS and DTLS-SRTP handshake library for Elixir, based on [OpenSSL].
 
 ElixirDTLS allows user to perform DTLS handshake (including DTLS-SRTP one) without requiring
 any socket. Instead, it generates DTLS packets that user has to transport to the peer.
