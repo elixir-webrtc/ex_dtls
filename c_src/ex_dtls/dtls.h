@@ -6,6 +6,8 @@
 #include <openssl/x509.h>
 #include <string.h>
 
+#include "log.h"
+
 typedef struct KeyingMaterial {
   unsigned char *client; // client keying material - master key + master salt
   unsigned char *server;

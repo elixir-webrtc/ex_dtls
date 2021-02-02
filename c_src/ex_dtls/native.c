@@ -8,10 +8,6 @@
 
 #define BUF_LEN 2048
 
-#define DEBUG(X, ...)                                                          \
-  printf(X "\n", ##__VA_ARGS__);                                               \
-  fflush(stdout);
-
 UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
   UNIFEX_TERM res_term;
   State *state = unifex_alloc_state(env);
