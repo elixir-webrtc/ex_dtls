@@ -1,11 +1,5 @@
 #include "dtls.h"
 
-#ifdef CNODE_DEBUG
-#define DEBUG(X, ...) fprintf(stderr, X "\r\n", ##__VA_ARGS__)
-#else
-#define DEBUG(...)
-#endif
-
 SSL_CTX *create_ctx(int dtls_srtp) {
   SSL_CTX *ssl_ctx = SSL_CTX_new(DTLS_method());
   if (ssl_ctx == NULL) {
