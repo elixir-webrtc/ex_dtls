@@ -80,9 +80,11 @@ defmodule ExDTLS do
   `{:finished, keying_material}` message.
   """
   @spec do_handshake(pid :: pid(), packets :: binary()) ::
-          {:ok, packets :: binary()}
-          | {:finished_with_packets, handshake_data_t(), packets :: binary()}
+          :ok
+          | {:ok, packets :: binary()}
+          | {:finished, handshake_data_t(), packets :: binary()}
           | {:finished, handshake_data_t()}
+
   def do_handshake(pid, packets \\ <<>>) do
     GenServer.call(pid, {:do_handshake, packets})
   end
@@ -103,23 +105,13 @@ defmodule ExDTLS do
     msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
 
     case msg do
+      {:ok, <<>>} ->
+        {:reply, :ok, state}
+
       {:ok, _packets} ->
         {:reply, msg, state}
 
-      {:finished_with_packets, client_keying_material, server_keying_material, protection_profile,
-       packets} ->
-        {local_km, remote_km} =
-          get_local_and_remote_km(
-            client_keying_material,
-            server_keying_material,
-            state.client_mode
-          )
-
-        handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:finished_with_packets, handshake_data, packets}
-        {:reply, msg, state}
-
-      {:finished, client_keying_material, server_keying_material, protection_profile} ->
+      {:finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
         {local_km, remote_km} =
           get_local_and_remote_km(
             client_keying_material,
@@ -129,6 +121,18 @@ defmodule ExDTLS do
 
         handshake_data = {local_km, remote_km, protection_profile}
         msg = {:finished, handshake_data}
+        {:reply, msg, state}
+
+      {:finished, client_keying_material, server_keying_material, protection_profile, packets} ->
+        {local_km, remote_km} =
+          get_local_and_remote_km(
+            client_keying_material,
+            server_keying_material,
+            state.client_mode
+          )
+
+        handshake_data = {local_km, remote_km, protection_profile}
+        msg = {:finished_with_packets, handshake_data, packets}
         {:reply, msg, state}
     end
   end
