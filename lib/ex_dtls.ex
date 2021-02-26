@@ -132,7 +132,7 @@ defmodule ExDTLS do
           )
 
         handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:finished_with_packets, handshake_data, packets}
+        msg = {:finished, handshake_data, packets}
         {:reply, msg, state}
     end
   end
