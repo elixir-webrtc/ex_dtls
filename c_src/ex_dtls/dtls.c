@@ -86,7 +86,6 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
     free(material);
     return NULL;
   }
-  DEBUG("Keying material %s", material);
 
   KeyingMaterial *keying_material;
   keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
