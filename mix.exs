@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.3.1"
   @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
