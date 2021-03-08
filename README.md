@@ -18,7 +18,7 @@ The package can be installed by adding `ex_dtls` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:ex_dtls, "~> 0.3.0"}
+    {:ex_dtls, "~> 0.3.1"}
   ]
 end
 ```
@@ -43,7 +43,7 @@ After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
-Peer that finishes handshake first will return `{:finished_with_packets, handshake_data, packets}`
+Peer that finishes handshake first will return `{:finished, handshake_data, packets}`
 message. These packets have to be sent to the second peer, so it can finish its handshake too and
 return `{:finished, handshake_data}` message.
 

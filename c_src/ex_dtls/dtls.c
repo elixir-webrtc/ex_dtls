@@ -7,7 +7,7 @@ SSL_CTX *create_ctx(int dtls_srtp) {
   }
 
   if (dtls_srtp == 1) {
-    DEBUG("Setting SRTP extension")
+    DEBUG("Setting SRTP extension");
     int res = SSL_CTX_set_tlsext_use_srtp(
         ssl_ctx, "SRTP_AES128_CM_SHA1_80:SRTP_AES128_CM_SHA1_32:SRTP_AEAD_AES_"
                  "128_GCM:SRTP_AEAD_AES_256_GCM");
@@ -86,7 +86,6 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
     free(material);
     return NULL;
   }
-  DEBUG("Keying material %s", material);
 
   KeyingMaterial *keying_material;
   keying_material = (KeyingMaterial *)malloc(sizeof(KeyingMaterial));
