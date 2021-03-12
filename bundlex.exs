@@ -13,6 +13,7 @@ defmodule ExDTLS.BundlexProject do
         sources: ["native.c", "dtls.c", "dyn_buff.c"],
         deps: [unifex: :unifex],
         pkg_configs: ["openssl"],
+        compiler_flags: ["-DCNODE_DEBUG"],
         libs: ["pthread"],
         interface: :cnode,
         preprocessor: Unifex

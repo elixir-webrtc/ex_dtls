@@ -6,7 +6,10 @@
 #include "dyn_buff.h"
 #include "native.h"
 
-#define BUF_LEN 2048
+void ssl_info_cb(const SSL *ssl, int where, int ret);
+UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
+UNIFEX_TERM handle_handshake_inprogress(State *state, int ret);
+UNIFEX_TERM handle_handshake_finished(State *state);
 
 UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
   UNIFEX_TERM res_term;
@@ -48,12 +51,21 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
   }
 
   state->client_mode = client_mode;
-  state->SSL_error = SSL_ERROR_NONE;
+  state->hsk_finished = 0;
+  SSL_set_info_callback(state->ssl, ssl_info_cb);
   res_term = init_result_ok(env, state);
 
 exit:
   unifex_release_state(env, state);
   return res_term;
+}
+
+void ssl_info_cb(const SSL *ssl, int where, int ret) {
+  (void)ssl;
+  (void)ret;
+  if (where & SSL_CB_ALERT) {
+    DEBUG("DTLS alert occurred.");
+  }
 }
 
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
@@ -71,19 +83,43 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   return res_term;
 }
 
-UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
-  DynBuff *dyn_buff = dyn_buff_new(1024);
-  UnifexPayload *gen_packets;
-  UNIFEX_TERM res_term;
+UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
+  SSL_do_handshake(state->ssl);
 
-  if (dyn_buff == NULL) {
-    return unifex_raise(env, "Handshake failed: can't create new dyn_buff");
+  size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
+  if (pending_data_len > 0) {
+    DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+
+    char *pending_data = (char *)malloc(pending_data_len * sizeof(char));
+    memset(pending_data, 0, pending_data_len);
+    BIO *wbio = SSL_get_wbio(state->ssl);
+    int read_bytes = BIO_read(wbio, pending_data, pending_data_len);
+    if (read_bytes <= 0) {
+      DEBUG("WBIO: read error");
+      return unifex_raise(state->env, "Handshake failed: write BIO error");
+    } else {
+      DEBUG("WBIO: read: %d bytes", read_bytes);
+      UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+          env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+      memcpy(gen_packets->data, pending_data, pending_data_len);
+      gen_packets->size = (unsigned int)pending_data_len;
+      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, gen_packets);
+      unifex_payload_release(gen_packets);
+      return res_term;
+    }
   }
+
+  return unifex_raise(state->env, "Handshake failed: no packets generated");
+}
+
+UNIFEX_TERM process(UnifexEnv *env, State *state, UnifexPayload *payload) {
+  (void)env;
 
   if (payload->size != 0) {
     DEBUG("Feeding: %d", payload->size);
 
-    int bytes = BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
+    int bytes =
+        BIO_write(SSL_get_rbio(state->ssl), payload->data, payload->size);
     if (bytes <= 0) {
       DEBUG("RBIO: write error");
       return unifex_raise(state->env, "Handshake failed: read BIO error");
@@ -92,90 +128,136 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state, UnifexPayload *payload) {
     DEBUG("RBIO: wrote %d", bytes);
   }
 
-  for (;;) {
-    int res = SSL_do_handshake(state->ssl);
+  char data[1500] = {0};
+  int ret = SSL_read(state->ssl, &data, 1500);
 
-    size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
-    if (pending_data_len > 0) {
-      DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+  if (state->hsk_finished == 1) {
+    return handle_regular_read(state, data, ret);
+  } else if (SSL_is_init_finished(state->ssl) == 1) {
+    DEBUG("Handshake finished successfully");
+    return handle_handshake_finished(state);
+  } else {
+    DEBUG("Handshake in progress");
+    return handle_handshake_inprogress(state, ret);
+  }
+}
 
-      char *data = (char *)malloc(pending_data_len * sizeof(char));
-      memset(data, 0, pending_data_len);
-      BIO *wbio = SSL_get_wbio(state->ssl);
-      int read_bytes = BIO_read(wbio, data, pending_data_len);
-      if (read_bytes <= 0) {
-        DEBUG("WBIO: read error");
-        return unifex_raise(state->env, "Handshake failed: write BIO error");
-      } else {
-        if (dyn_buff_insert(dyn_buff, data, read_bytes) == -1) {
-           return unifex_raise(state->env, "Handshake failed: can't insert to dyn_buff");
-        }
-      }
+UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
+  if (ret > 0) {
+    UnifexPayload *packets = (UnifexPayload *)unifex_payload_alloc(
+        state->env, UNIFEX_PAYLOAD_BINARY, ret);
+    memcpy(packets->data, data, ret);
+    packets->size = (unsigned int)ret;
+    UNIFEX_TERM res_term = process_result_ok(state->env, state, packets);
+    unifex_payload_release(packets);
+    return res_term;
+  }
 
-      DEBUG("WBIO: read: %d bytes", read_bytes);
+  // handle READ errors including DTLS alerts
+  int error = SSL_get_error(state->ssl, ret);
+  DEBUG("SSL ERROR: %d", error);
+  return process_result_error(state->env, error);
+}
 
-      free(data);
-    }
+UNIFEX_TERM handle_handshake_finished(State *state) {
+  KeyingMaterial *keying_material = export_keying_material(state->ssl);
+  if (keying_material == NULL) {
+    DEBUG("Cannot export keying material");
+    return unifex_raise(state->env,
+                        "Handshake failed: cannot export keying material");
+  }
 
-    res = SSL_get_error(state->ssl, res);
-    switch (res) {
-    case SSL_ERROR_WANT_READ:
-      DEBUG("SSL WANT READ");
-      state->SSL_error = SSL_ERROR_WANT_READ;
+  int len = keying_material->len;
+  UnifexPayload *client_keying_material = (UnifexPayload *)unifex_payload_alloc(
+      state->env, UNIFEX_PAYLOAD_BINARY, len);
+  memcpy(client_keying_material->data, keying_material->client, len);
+  client_keying_material->size = len;
+
+  UnifexPayload *server_keying_material = (UnifexPayload *)unifex_payload_alloc(
+      state->env, UNIFEX_PAYLOAD_BINARY, len);
+  memcpy(server_keying_material->data, keying_material->server, len);
+  server_keying_material->size = len;
+
+  size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
+  DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+
+  if (pending_data_len > 0) {
+    char *pending_data = (char *)malloc(pending_data_len * sizeof(char));
+    memset(pending_data, 0, pending_data_len);
+    BIO *wbio = SSL_get_wbio(state->ssl);
+    int read_bytes = BIO_read(wbio, pending_data, pending_data_len);
+    if (read_bytes <= 0) {
+      DEBUG("WBIO: read error");
+      free(pending_data);
+      return unifex_raise(state->env, "Handshake failed: write BIO error");
+    } else {
       // break and wait for data from remote host. It will come in feed()
       // function.
-      gen_packets = (UnifexPayload *)unifex_payload_alloc(
-          env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
-      memcpy(gen_packets->data, dyn_buff->data, dyn_buff->data_size);
-      gen_packets->size = (unsigned int)dyn_buff->data_size;
-      res_term = do_handshake_result_ok(env, state, gen_packets);
-      dyn_buff_free(dyn_buff);
-      unifex_payload_release(gen_packets);
-      return res_term;
-    case SSL_ERROR_WANT_WRITE:
-      DEBUG("SSL WANT WRITE");
-      break;
-    case SSL_ERROR_NONE:
-      /*
-        This will be reached only when handshake succeeds because SSL_ERROR_NONE
-        is returned only when res (passed to SSL_get_error) is greater than 0
-        and res greater than zero means handshake succeeded.
-      */
-      DEBUG("Handshake finished successfully");
-
-      KeyingMaterial *keying_material = export_keying_material(state->ssl);
-      if (keying_material == NULL) {
-        DEBUG("Cannot export keying material");
-        return unifex_raise(env, "Handshake failed: cannot export keying material");
-      }
-
-      int len = keying_material->len;
-      UnifexPayload *client_keying_material =
-          (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-      memcpy(client_keying_material->data, keying_material->client, len);
-      client_keying_material->size = len;
-
-      UnifexPayload *server_keying_material =
-          (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-      memcpy(server_keying_material->data, keying_material->server, len);
-      server_keying_material->size = len;
-
+      DEBUG("WBIO: read: %d bytes", read_bytes);
       UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
-          env, UNIFEX_PAYLOAD_BINARY, dyn_buff->data_size);
-      memcpy(gen_packets->data, dyn_buff->data, dyn_buff->data_size);
-      gen_packets->size = (unsigned int)dyn_buff->data_size;
-      res_term = do_handshake_result_finished(
-          env, state, client_keying_material, server_keying_material,
+          state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+      memcpy(gen_packets->data, pending_data, pending_data_len);
+      gen_packets->size = (unsigned int)pending_data_len;
+      state->hsk_finished = 1;
+      UNIFEX_TERM res_term = process_result_hsk_finished(
+          state->env, state, client_keying_material, server_keying_material,
           keying_material->protection_profile, gen_packets);
-      dyn_buff_free(dyn_buff);
+      free(pending_data);
       unifex_payload_release(gen_packets);
       unifex_payload_release(client_keying_material);
       unifex_payload_release(server_keying_material);
       return res_term;
-    default:
-      DEBUG("SSL ERROR: %d", res);
-      return unifex_raise(env, "Handshake failed: SSL error");
     }
+  } else {
+    // we have no pending data to send - send empty binary
+    UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+        state->env, UNIFEX_PAYLOAD_BINARY, 0);
+    state->hsk_finished = 1;
+    UNIFEX_TERM res_term = process_result_hsk_finished(
+        state->env, state, client_keying_material, server_keying_material,
+        keying_material->protection_profile, gen_packets);
+    unifex_payload_release(gen_packets);
+    unifex_payload_release(client_keying_material);
+    unifex_payload_release(server_keying_material);
+    return res_term;
+  }
+}
+
+UNIFEX_TERM handle_handshake_inprogress(State *state, int ret) {
+  int ssl_error = SSL_get_error(state->ssl, ret);
+  switch (ssl_error) {
+  case SSL_ERROR_WANT_READ:
+    DEBUG("SSL WANT READ");
+    size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
+    DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+
+    if (pending_data_len > 0) {
+      char *pending_data = (char *)malloc(pending_data_len * sizeof(char));
+      memset(pending_data, 0, pending_data_len);
+      BIO *wbio = SSL_get_wbio(state->ssl);
+      int read_bytes = BIO_read(wbio, pending_data, pending_data_len);
+      if (read_bytes <= 0) {
+        DEBUG("WBIO: read error");
+        free(pending_data);
+        return unifex_raise(state->env, "Handshake failed: write BIO error");
+      } else {
+        DEBUG("WBIO: read: %d bytes", read_bytes);
+        UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+            state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+        memcpy(gen_packets->data, pending_data, pending_data_len);
+        gen_packets->size = (unsigned int)pending_data_len;
+        UNIFEX_TERM res_term =
+            process_result_hsk_packets(state->env, state, gen_packets);
+        free(pending_data);
+        unifex_payload_release(gen_packets);
+        return res_term;
+      }
+    } else {
+      return process_result_hsk_want_read(state->env);
+    }
+  default:
+    DEBUG("SSL ERROR: %d", ssl_error);
+    return process_result_error(state->env, ssl_error);
   }
 }
 
