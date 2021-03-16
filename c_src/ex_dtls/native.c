@@ -102,18 +102,18 @@ UNIFEX_TERM set_cert(UnifexEnv *env, UnifexPayload *payload, State *state) {
 }
 
 UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
-    int len;
-    unsigned char *p;
+  int len;
+  unsigned char *p;
 
-    len = i2d_X509(state->x509, NULL);
-    UnifexPayload *payload =
-        (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-    p = payload->data;
-    i2d_X509(state->x509, &p);
-    payload->size = len;
-    UNIFEX_TERM res_term = get_cert_result_ok(env, payload);
-    unifex_payload_release(payload);
-    return res_term;
+  len = i2d_X509(state->x509, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_X509(state->x509, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = get_cert_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
 }
 
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
