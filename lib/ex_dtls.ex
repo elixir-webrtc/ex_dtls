@@ -61,6 +61,37 @@ defmodule ExDTLS do
   end
 
   @doc """
+  Generates new certificate.
+
+  Returns DER representation in binary format.
+  """
+  @spec generate_cert(pid :: pid()) :: cert :: binary()
+  def generate_cert(pid) do
+    GenServer.call(pid, :generate_cert)
+  end
+
+  @doc """
+  Sets certificate.
+
+  Returns `:failed_to_decode_cert` if conversion from binary to internal structure couldn't be
+  performed.
+  """
+  @spec set_cert(pid :: pid(), cert :: binary()) :: :ok | :failed_to_decode_cert
+  def set_cert(pid, cert) do
+    GenServer.call(pid, {:set_cert, cert})
+  end
+
+  @doc """
+  Gets current certificate.
+
+  Returns DER representation in binary format.
+  """
+  @spec get_cert(pid :: pid()) :: cert :: binary()
+  def get_cert(pid) do
+    GenServer.call(pid, :get_cert)
+  end
+
+  @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
   @spec get_cert_fingerprint(pid :: pid()) :: {:ok, fingerprint :: binary()}
@@ -164,10 +195,27 @@ defmodule ExDTLS do
 
   @doc false
   @impl true
+  def handle_call(:generate_cert, _from, %State{cnode: cnode} = state) do
+    {:ok, cert} = Unifex.CNode.call(cnode, :generate_cert)
+    {:reply, {:ok, cert}, state}
+  end
+
+  @doc false
+  @impl true
   def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
     {:reply, {:ok, digest}, state}
   end
+
+  @doc false
+  @impl true
+  def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+
+  @doc false
+  @impl true
+  def handle_call({:set_cert, cert}, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :set_cert, [cert]), state}
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),
     do: {client_keying_material, server_keying_material}

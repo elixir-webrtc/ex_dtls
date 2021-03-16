@@ -71,6 +71,51 @@ void ssl_info_cb(const SSL *ssl, int where, int ret) {
   }
 }
 
+UNIFEX_TERM generate_cert(UnifexEnv *env) {
+  int len;
+  unsigned char *p;
+
+  EVP_PKEY *pkey = gen_key();
+  X509 *cert = gen_cert(pkey);
+
+  len = i2d_X509(cert, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_X509(cert, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = generate_cert_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
+}
+
+UNIFEX_TERM set_cert(UnifexEnv *env, UnifexPayload *payload, State *state) {
+  const unsigned char *p;
+  p = payload->data;
+  X509 *cert = d2i_X509(NULL, &p, payload->size);
+
+  if (cert == NULL) {
+    return set_cert_result_error_failed_to_decode_cert(env);
+  }
+  state->x509 = cert;
+  return set_cert_result_ok(env, state);
+}
+
+UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
+    int len;
+    unsigned char *p;
+
+    len = i2d_X509(state->x509, NULL);
+    UnifexPayload *payload =
+        (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+    p = payload->data;
+    i2d_X509(state->x509, &p);
+    payload->size = len;
+    UNIFEX_TERM res_term = get_cert_result_ok(env, payload);
+    unifex_payload_release(payload);
+    return res_term;
+}
+
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   unsigned char md[EVP_MAX_MD_SIZE] = {0};
   unsigned int size;
