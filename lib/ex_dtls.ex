@@ -96,7 +96,7 @@ defmodule ExDTLS do
           | {:hsk_packets, packets :: binary()}
           | {:finished, handshake_data_t(), packets :: binary()}
           | {:finished, handshake_data_t()}
-          | {:error, value :: integer()}
+          | {:error, :peer_closed_for_writing}
   def process(pid, packets) do
     GenServer.call(pid, {:process, packets})
   end

@@ -10,6 +10,7 @@ void ssl_info_cb(const SSL *ssl, int where, int ret);
 int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,
                       State *state);
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
+UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 
@@ -155,10 +156,19 @@ UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
     return res_term;
   }
 
+  return handle_read_error(state, ret);
+}
+
+UNIFEX_TERM handle_read_error(State *state, int ret) {
   // handle READ errors including DTLS alerts
   int error = SSL_get_error(state->ssl, ret);
-  DEBUG("SSL ERROR: %d", error);
-  return process_result_error(state->env, error);
+  switch (error) {
+  case SSL_ERROR_ZERO_RETURN:
+    return process_result_error_peer_closed_for_writing(state->env);
+  default:
+    DEBUG("SSL ERROR: %d", error);
+    return unifex_raise(state->env, "SSL read error");
+  }
 }
 
 UNIFEX_TERM handle_handshake_finished(State *state) {
@@ -227,8 +237,7 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
       return process_result_hsk_want_read(state->env);
     }
   default:
-    DEBUG("SSL ERROR: %d", ssl_error);
-    return process_result_error(state->env, ssl_error);
+    return handle_read_error(state, ret);
   }
 }
 

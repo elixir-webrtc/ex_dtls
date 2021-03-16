@@ -18,4 +18,4 @@ spec process(state, packets :: payload) :: {:ok :: label, state, packets :: payl
                                               server_keying_material :: payload,
                                               protection_profile :: int,
                                               packets :: payload}
-                                           | {:error :: label, value :: int}
+                                           | {:error :: label, :peer_closed_for_writing :: label}
