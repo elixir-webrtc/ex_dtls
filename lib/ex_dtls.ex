@@ -86,16 +86,16 @@ defmodule ExDTLS do
   If handshake is finished it returns `{:ok, binary()}` which is decoded data
   or `{:error, value}` if error occurred.
 
-  `{:hsk_packets, binary()}` contains handshake data that has to be sent to the peer.
-  `:hsk_want_read` means some additional data is needed for continuing handshake. It can be returned
-  when retransmited packet was passed but timer didn't expired yet.
+  `{:handshake_packets, binary()}` contains handshake data that has to be sent to the peer.
+  `:handshake_want_read` means some additional data is needed for continuing handshake. It can be returned
+  when retransmitted packet was passed but timer didn't expired yet.
   """
   @spec process(pid :: pid(), packets :: binary()) ::
           {:ok, packets :: binary()}
-          | :hsk_want_read
-          | {:hsk_packets, packets :: binary()}
-          | {:finished, handshake_data_t(), packets :: binary()}
-          | {:finished, handshake_data_t()}
+          | :handshake_want_read
+          | {:handshake_packets, packets :: binary()}
+          | {:handshake_finished, handshake_data_t(), packets :: binary()}
+          | {:handshake_finished, handshake_data_t()}
           | {:error, :peer_closed_for_writing}
   def process(pid, packets) do
     GenServer.call(pid, {:process, packets})
@@ -128,10 +128,10 @@ defmodule ExDTLS do
         {:reply, msg, state}
 
       :hsk_want_read ->
-        {:reply, :ok, state}
+        {:reply, :handshake_want_read, state}
 
-      {:hsk_packets, _packets} ->
-        {:reply, msg, state}
+      {:hsk_packets, packets} ->
+        {:reply, {:handshake_packets, packets}, state}
 
       {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
         {local_km, remote_km} =
@@ -142,7 +142,7 @@ defmodule ExDTLS do
           )
 
         handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:hsk_finished, handshake_data}
+        msg = {:handshake_finished, handshake_data}
         {:reply, msg, state}
 
       {:hsk_finished, client_keying_material, server_keying_material, protection_profile, packets} ->
@@ -154,7 +154,7 @@ defmodule ExDTLS do
           )
 
         handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:hsk_finished, handshake_data, packets}
+        msg = {:handshake_finished, handshake_data, packets}
         {:reply, msg, state}
 
       {:error, _value} = msg ->
