@@ -160,6 +160,7 @@ UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
 }
 
 UNIFEX_TERM handle_handshake_finished(State *state) {
+  UnifexPayload *gen_packets;
   KeyingMaterial *keying_material = export_keying_material(state->ssl);
   if (keying_material == NULL) {
     DEBUG("Cannot export keying material");
@@ -191,36 +192,26 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
       free(pending_data);
       return unifex_raise(state->env, "Handshake failed: write BIO error");
     } else {
-      // break and wait for data from remote host. It will come in feed()
-      // function.
       DEBUG("WBIO: read: %d bytes", read_bytes);
-      UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+      gen_packets = (UnifexPayload *)unifex_payload_alloc(
           state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
       memcpy(gen_packets->data, pending_data, pending_data_len);
       gen_packets->size = (unsigned int)pending_data_len;
-      state->hsk_finished = 1;
-      UNIFEX_TERM res_term = process_result_hsk_finished(
-          state->env, state, client_keying_material, server_keying_material,
-          keying_material->protection_profile, gen_packets);
       free(pending_data);
-      unifex_payload_release(gen_packets);
-      unifex_payload_release(client_keying_material);
-      unifex_payload_release(server_keying_material);
-      return res_term;
     }
   } else {
     // we have no pending data to send - send empty binary
-    UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+    gen_packets = (UnifexPayload *)unifex_payload_alloc(
         state->env, UNIFEX_PAYLOAD_BINARY, 0);
-    state->hsk_finished = 1;
-    UNIFEX_TERM res_term = process_result_hsk_finished(
-        state->env, state, client_keying_material, server_keying_material,
-        keying_material->protection_profile, gen_packets);
-    unifex_payload_release(gen_packets);
-    unifex_payload_release(client_keying_material);
-    unifex_payload_release(server_keying_material);
-    return res_term;
   }
+  state->hsk_finished = 1;
+  UNIFEX_TERM res_term = process_result_hsk_finished(
+      state->env, state, client_keying_material, server_keying_material,
+      keying_material->protection_profile, gen_packets);
+  unifex_payload_release(gen_packets);
+  unifex_payload_release(client_keying_material);
+  unifex_payload_release(server_keying_material);
+  return res_term;
 }
 
 UNIFEX_TERM handle_handshake_inprogress(State *state, int ret) {
