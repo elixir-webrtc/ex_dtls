@@ -25,18 +25,18 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
     goto exit;
   }
 
-  state->pkey = gen_key();
-  if (state->pkey == NULL) {
+  EVP_PKEY *pkey = gen_key();
+  if (pkey == NULL) {
     res_term = unifex_raise(env, "Cannot generate key pair");
     goto exit;
   }
 
-  if (SSL_CTX_use_PrivateKey(state->ssl_ctx, state->pkey) != 1) {
+  if (SSL_CTX_use_PrivateKey(state->ssl_ctx, pkey) != 1) {
     res_term = unifex_raise(env, "Cannot set private key");
     goto exit;
   }
 
-  state->x509 = gen_cert(state->pkey);
+  state->x509 = gen_cert(pkey);
   if (state->x509 == NULL) {
     res_term = unifex_raise(env, "Cannot generate cert");
     goto exit;
@@ -313,10 +313,6 @@ void handle_destroy_state(UnifexEnv *env, State *state) {
 
   if (state->ssl) {
     SSL_free(state->ssl);
-  }
-
-  if (state->pkey) {
-    EVP_PKEY_free(state->pkey);
   }
 
   if (state->x509) {

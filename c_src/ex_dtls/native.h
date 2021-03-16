@@ -9,7 +9,6 @@ struct State {
   UnifexEnv *env;
   SSL_CTX *ssl_ctx;
   SSL *ssl;
-  EVP_PKEY *pkey;
   X509 *x509;
   int client_mode;
   int hsk_finished;
