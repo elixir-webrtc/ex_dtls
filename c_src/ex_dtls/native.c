@@ -199,7 +199,6 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
       state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
   if (pending_data_len > 0) {
     if (read_pending_data(gen_packets, pending_data_len, state) < 0) {
-      unifex_payload_release(gen_packets);
       res_term = unifex_raise(state->env, "Handshake failed: write BIO error");
       goto cleanup;
     }
@@ -249,13 +248,12 @@ int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,
   int read_bytes = BIO_read(wbio, pending_data, pending_data_len);
   if (read_bytes <= 0) {
     DEBUG("WBIO: read error");
-    free(pending_data);
   } else {
     DEBUG("WBIO: read: %d bytes", read_bytes);
     memcpy(gen_packets->data, pending_data, pending_data_len);
     gen_packets->size = (unsigned int)pending_data_len;
-    free(pending_data);
   }
+  free(pending_data);
 
   return read_bytes;
 }
