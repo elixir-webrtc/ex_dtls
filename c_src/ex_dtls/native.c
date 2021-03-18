@@ -164,7 +164,7 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   int error = SSL_get_error(state->ssl, ret);
   switch (error) {
   case SSL_ERROR_ZERO_RETURN:
-    return process_result_error_peer_closed_for_writing(state->env);
+    return process_result_connection_closed_peer_closed_for_writing(state->env);
   default:
     DEBUG("SSL ERROR: %d", error);
     return unifex_raise(state->env, "SSL read error");

@@ -96,7 +96,7 @@ defmodule ExDTLS do
           | {:handshake_packets, packets :: binary()}
           | {:handshake_finished, handshake_data_t(), packets :: binary()}
           | {:handshake_finished, handshake_data_t()}
-          | {:error, :peer_closed_for_writing}
+          | {:connection_closed, reason :: atom()}
   def process(pid, packets) do
     GenServer.call(pid, {:process, packets})
   end
@@ -157,7 +157,7 @@ defmodule ExDTLS do
         msg = {:handshake_finished, handshake_data, packets}
         {:reply, msg, state}
 
-      {:error, _value} = msg ->
+      {:connection_closed, _reason} = msg ->
         {:reply, msg, state}
     end
   end
