@@ -13,16 +13,16 @@ defmodule ExDTLS.IntegrationTest do
   end
 
   defp loop({pid1, false}, {pid2, true}, packets) do
-    {:finished, _handshake_data} = ExDTLS.do_handshake(pid1, packets)
+    {:handshake_finished, _handshake_data} = ExDTLS.process(pid1, packets)
     loop({pid2, true}, {pid1, true}, nil)
   end
 
   defp loop({pid1, state1}, {pid2, state2}, packets) do
-    case ExDTLS.do_handshake(pid1, packets) do
-      {:ok, packets} ->
+    case ExDTLS.process(pid1, packets) do
+      {:handshake_packets, packets} ->
         loop({pid2, state2}, {pid1, state1}, packets)
 
-      {:finished, _handshake_data, packets} ->
+      {:handshake_finished, _handshake_data, packets} ->
         loop({pid2, state2}, {pid1, true}, packets)
     end
   end

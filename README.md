@@ -38,7 +38,7 @@ You can use for that e.g. a TCP socket, but we will not cover this here.
 
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 ```elixir
-{:ok, packets} = ExDTLS.do_handshake(dtls, packets)
+{:ok, packets} = ExDTLS.process(dtls, packets)
 ```
 As a result, we will also get some new packets that have to be passed to the first peer.
 

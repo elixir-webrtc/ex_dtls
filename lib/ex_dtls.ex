@@ -10,6 +10,7 @@ defmodule ExDTLS do
   use GenServer
 
   require Unifex.CNode
+  require Membrane.Logger
 
   defmodule State do
     @moduledoc false
@@ -70,23 +71,34 @@ defmodule ExDTLS do
   @doc """
   Starts performing DTLS handshake.
 
-  This function has to be called without any `packets` by host working in the client mode at first.
-  This will return initial DTLS packets that have to be passed to the second host.
-  Then both peers have to call this function to process incoming packets and generate outgoing ones.
-
-  A peer that finishes handshake successfully first will return
-  `{:finished_with_packets, keying_material, packets}` message. Received packets have to be
-  once again passed to a second peer so it can finish its handshake too and return
-  `{:finished, keying_material}` message.
+  Generates initial DTLS packets that have to be passed to the second host.
+  Has to be called by a host working in the client mode.
   """
-  @spec do_handshake(pid :: pid(), packets :: binary()) ::
-          :ok
-          | {:ok, packets :: binary()}
-          | {:finished, handshake_data_t(), packets :: binary()}
-          | {:finished, handshake_data_t()}
+  @spec do_handshake(pid :: pid(), packets :: binary()) :: :ok | {:ok, packets :: binary()}
 
   def do_handshake(pid, packets \\ <<>>) do
     GenServer.call(pid, {:do_handshake, packets})
+  end
+
+  @doc """
+  Processes peer's packets.
+
+  If handshake is finished it returns `{:ok, binary()}` which is decoded data
+  or `{:error, value}` if error occurred.
+
+  `{:handshake_packets, binary()}` contains handshake data that has to be sent to the peer.
+  `:handshake_want_read` means some additional data is needed for continuing handshake. It can be returned
+  when retransmitted packet was passed but timer didn't expired yet.
+  """
+  @spec process(pid :: pid(), packets :: binary()) ::
+          {:ok, packets :: binary()}
+          | :handshake_want_read
+          | {:handshake_packets, packets :: binary()}
+          | {:handshake_finished, handshake_data_t(), packets :: binary()}
+          | {:handshake_finished, handshake_data_t()}
+          | {:connection_closed, reason :: atom()}
+  def process(pid, packets) do
+    GenServer.call(pid, {:process, packets})
   end
 
   # Server APi
@@ -102,16 +114,26 @@ defmodule ExDTLS do
   @doc false
   @impl true
   def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
-    msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
+    {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
+    {:reply, msg, state}
+  end
+
+  @doc false
+  @impl true
+  def handle_call({:process, packets}, _from, %State{cnode: cnode} = state) do
+    msg = Unifex.CNode.call(cnode, :process, [packets])
 
     case msg do
-      {:ok, <<>>} ->
-        {:reply, :ok, state}
-
-      {:ok, _packets} ->
+      {:ok, _packets} = msg ->
         {:reply, msg, state}
 
-      {:finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
+      :hsk_want_read ->
+        {:reply, :handshake_want_read, state}
+
+      {:hsk_packets, packets} ->
+        {:reply, {:handshake_packets, packets}, state}
+
+      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
         {local_km, remote_km} =
           get_local_and_remote_km(
             client_keying_material,
@@ -120,10 +142,10 @@ defmodule ExDTLS do
           )
 
         handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:finished, handshake_data}
+        msg = {:handshake_finished, handshake_data}
         {:reply, msg, state}
 
-      {:finished, client_keying_material, server_keying_material, protection_profile, packets} ->
+      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, packets} ->
         {local_km, remote_km} =
           get_local_and_remote_km(
             client_keying_material,
@@ -132,7 +154,10 @@ defmodule ExDTLS do
           )
 
         handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:finished, handshake_data, packets}
+        msg = {:handshake_finished, handshake_data, packets}
+        {:reply, msg, state}
+
+      {:connection_closed, _reason} = msg ->
         {:reply, msg, state}
     end
   end
