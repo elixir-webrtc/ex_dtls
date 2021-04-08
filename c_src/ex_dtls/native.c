@@ -25,18 +25,18 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
     goto exit;
   }
 
-  EVP_PKEY *pkey = gen_key();
-  if (pkey == NULL) {
+  state->pkey = gen_key();
+  if (state->pkey == NULL) {
     res_term = unifex_raise(env, "Cannot generate key pair");
     goto exit;
   }
 
-  if (SSL_CTX_use_PrivateKey(state->ssl_ctx, pkey) != 1) {
+  if (SSL_CTX_use_PrivateKey(state->ssl_ctx, state->pkey) != 1) {
     res_term = unifex_raise(env, "Cannot set private key");
     goto exit;
   }
 
-  state->x509 = gen_cert(pkey);
+  state->x509 = gen_cert(state->pkey);
   if (state->x509 == NULL) {
     res_term = unifex_raise(env, "Cannot generate cert");
     goto exit;
@@ -89,16 +89,19 @@ UNIFEX_TERM generate_cert(UnifexEnv *env) {
   return res_term;
 }
 
-UNIFEX_TERM set_cert(UnifexEnv *env, UnifexPayload *payload, State *state) {
-  const unsigned char *p;
-  p = payload->data;
-  X509 *cert = d2i_X509(NULL, &p, payload->size);
+UNIFEX_TERM get_pkey(UnifexEnv *env, State *state) {
+  int len;
+  unsigned char *p;
 
-  if (cert == NULL) {
-    return set_cert_result_error_failed_to_decode_cert(env);
-  }
-  state->x509 = cert;
-  return set_cert_result_ok(env, state);
+  len = i2d_PrivateKey(state->pkey, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_PrivateKey(state->pkey, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = get_pkey_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
 }
 
 UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {

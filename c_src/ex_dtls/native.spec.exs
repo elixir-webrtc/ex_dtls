@@ -8,8 +8,7 @@ spec init(client_mode :: bool, dtls_srtp :: bool) :: {:ok :: label, state}
 
 spec generate_cert() :: {:ok :: label, cert :: payload()}
 
-spec set_cert(cert :: payload, state) :: {:ok :: label, state}
-                                         | {:error :: label, :failed_to_decode_cert :: label}
+spec get_pkey(state) :: {:ok :: label, pkey :: payload}
 
 spec get_cert(state) :: {:ok :: label, cert :: payload}
 

@@ -71,14 +71,13 @@ defmodule ExDTLS do
   end
 
   @doc """
-  Sets certificate.
+  Gets current private key.
 
-  Returns `:failed_to_decode_cert` if conversion from binary to internal structure couldn't be
-  performed.
+  Returns key specific representation in binary format.
   """
-  @spec set_cert(pid :: pid(), cert :: binary()) :: :ok | :failed_to_decode_cert
-  def set_cert(pid, cert) do
-    GenServer.call(pid, {:set_cert, cert})
+  @spec get_pkey(pid :: pid()) :: pkey :: binary()
+  def get_pkey(pid) do
+    GenServer.call(pid, :get_pkey)
   end
 
   @doc """
@@ -209,13 +208,13 @@ defmodule ExDTLS do
 
   @doc false
   @impl true
-  def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
-    do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+  def handle_call(:get_pkey, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :get_pkey), state}
 
   @doc false
   @impl true
-  def handle_call({:set_cert, cert}, _from, %State{cnode: cnode} = state),
-    do: {:reply, Unifex.CNode.call(cnode, :set_cert, [cert]), state}
+  def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),
     do: {client_keying_material, server_keying_material}
