@@ -29,10 +29,16 @@ defmodule ExDTLS do
   It's a keyword list containing the following keys:
   * `client_mode` - true if ExDTLS module should work as a client or false if as a server
   * `dtls_srtp` - true if DTLS-SRTP handshake should be performed or false if a normal one
+  * `pkey` - private key to use in this SSL context. Must corespond to `cert`.
+  * `cert` - certificate to use in this SSL context. Must corespond to `pkey`.
+
+  `pkey` and `cert` are optional. If not provided `ExDTLS` will generate them.
   """
   @type opts_t :: [
           client_mode: boolean(),
-          dtls_srtp: boolean()
+          dtls_srtp: boolean(),
+          pkey: binary(),
+          cert: binary()
         ]
 
   @typedoc """
@@ -136,7 +142,27 @@ defmodule ExDTLS do
   @impl true
   def init(opts) do
     {:ok, pid} = Unifex.CNode.start_link(:native)
-    :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+
+    cond do
+      opts[:pkey] == nil and opts[:cert] == nil ->
+        :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+
+      opts[:pkey] != nil and opts[:cert] != nil ->
+        :ok =
+          Unifex.CNode.call(pid, :init_var, [
+            opts[:client_mode],
+            opts[:dtls_srtp],
+            opts[:pkey],
+            opts[:cert]
+          ])
+
+      true ->
+        raise("""
+        Private key or certificate is nil. If you want private key and certificate
+        to be generated don't pass any of them."
+        """)
+    end
+
     state = %State{cnode: pid, client_mode: opts[:client_mode]}
     {:ok, state}
   end

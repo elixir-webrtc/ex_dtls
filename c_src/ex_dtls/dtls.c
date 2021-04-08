@@ -193,3 +193,15 @@ X509 *gen_cert(EVP_PKEY *pkey) {
 
   return x509;
 }
+
+EVP_PKEY *decode_pkey(unsigned char *buf, int len) {
+  const unsigned char *p;
+  p = buf;
+  return d2i_AutoPrivateKey(NULL, &p, len);
+}
+
+X509 *decode_cert(unsigned char *buf, int len) {
+  const unsigned char *p;
+  p = buf;
+  return d2i_X509(NULL, &p, len);
+}

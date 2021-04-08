@@ -9,12 +9,56 @@
 void ssl_info_cb(const SSL *ssl, int where, int ret);
 int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,
                       State *state);
+UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
+                    EVP_PKEY *pkey, X509 *x509);
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
 UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 
 UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
+  UNIFEX_TERM res_term;
+
+  EVP_PKEY *pkey = gen_key();
+  if (pkey == NULL) {
+    res_term = unifex_raise(env, "Cannot generate key pair");
+    goto exit;
+  }
+
+  X509 *x509 = gen_cert(pkey);
+  if (x509 == NULL) {
+    res_term = unifex_raise(env, "Cannot generate cert");
+    goto exit;
+  }
+
+  res_term = do_init(env, client_mode, dtls_srtp, pkey, x509);
+exit:
+  return res_term;
+}
+
+UNIFEX_TERM init_var(UnifexEnv *env, int client_mode, int dtls_srtp,
+                     UnifexPayload *pkey, UnifexPayload *cert) {
+  UNIFEX_TERM res_term;
+
+  EVP_PKEY *evp_pkey = decode_pkey(pkey->data, pkey->size);
+  if (evp_pkey == NULL) {
+    res_term = unifex_raise(env, "Cannot decode pkey");
+    goto exit;
+  }
+
+  X509 *x509 = decode_cert(cert->data, cert->size);
+  if (x509 == NULL) {
+    res_term = unifex_raise(env, "Cannot decode cert");
+    goto exit;
+  }
+
+  res_term = do_init(env, client_mode, dtls_srtp, evp_pkey, x509);
+exit:
+  return res_term;
+}
+
+UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
+                    EVP_PKEY *pkey, X509 *x509) {
   UNIFEX_TERM res_term;
   State *state = unifex_alloc_state(env);
   state->env = env;
@@ -25,23 +69,13 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
     goto exit;
   }
 
-  state->pkey = gen_key();
-  if (state->pkey == NULL) {
-    res_term = unifex_raise(env, "Cannot generate key pair");
-    goto exit;
-  }
-
+  state->pkey = pkey;
   if (SSL_CTX_use_PrivateKey(state->ssl_ctx, state->pkey) != 1) {
     res_term = unifex_raise(env, "Cannot set private key");
     goto exit;
   }
 
-  state->x509 = gen_cert(state->pkey);
-  if (state->x509 == NULL) {
-    res_term = unifex_raise(env, "Cannot generate cert");
-    goto exit;
-  }
-
+  state->x509 = x509;
   if (SSL_CTX_use_certificate(state->ssl_ctx, state->x509) != 1) {
     res_term = unifex_raise(env, "Cannot set cert");
     goto exit;
