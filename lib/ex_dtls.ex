@@ -140,9 +140,9 @@ defmodule ExDTLS do
   @doc """
   Stops ExDTLS instance.
   """
-  @spec stop(pid :: pid()) :: true
+  @spec stop(pid :: pid()) :: :ok
   def stop(pid) do
-    Process.exit(pid, :normal)
+    GenServer.stop(pid, :normal)
   end
 
   # Server APi
@@ -249,6 +249,12 @@ defmodule ExDTLS do
   @impl true
   def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+
+  @doc false
+  @impl true
+  def terminate(_reason, %State{cnode: cnode}) do
+    Unifex.CNode.stop(cnode)
+  end
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),
     do: {client_keying_material, server_keying_material}

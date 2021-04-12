@@ -36,4 +36,9 @@ defmodule ExDTLSTest do
     {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
     assert {:ok, _cert} = ExDTLS.generate_cert(pid)
   end
+
+  test "stop" do
+    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
+    assert :ok = ExDTLS.stop(pid)
+  end
 end
