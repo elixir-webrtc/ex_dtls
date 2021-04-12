@@ -157,7 +157,7 @@ defmodule ExDTLS do
 
       opts[:pkey] != nil and opts[:cert] != nil ->
         :ok =
-          Unifex.CNode.call(pid, :init_var, [
+          Unifex.CNode.call(pid, :init_from_key_cert, [
             opts[:client_mode],
             opts[:dtls_srtp],
             opts[:pkey],

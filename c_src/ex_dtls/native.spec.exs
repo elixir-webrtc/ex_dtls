@@ -6,7 +6,7 @@ state_type "State"
 
 spec init(client_mode :: bool, dtls_srtp :: bool) :: {:ok :: label, state}
 
-spec init_var(client_mode :: bool, dtls_srtp :: bool, pkey :: payload, cert :: payload) :: {:ok :: label, state}
+spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, pkey :: payload, cert :: payload) :: {:ok :: label, state}
 
 spec generate_cert() :: {:ok :: label, cert :: payload}
 

@@ -36,7 +36,7 @@ exit:
   return res_term;
 }
 
-UNIFEX_TERM init_var(UnifexEnv *env, int client_mode, int dtls_srtp,
+UNIFEX_TERM init_from_key_cert(UnifexEnv *env, int client_mode, int dtls_srtp,
                      UnifexPayload *pkey, UnifexPayload *cert) {
   UNIFEX_TERM res_term;
 
@@ -90,7 +90,7 @@ UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
   state->client_mode = client_mode;
   state->hsk_finished = 0;
   SSL_set_info_callback(state->ssl, ssl_info_cb);
-  res_term = init_result_ok(env, state);
+  res_term = init_from_key_cert_result_ok(env, state);
 
 exit:
   unifex_release_state(env, state);
