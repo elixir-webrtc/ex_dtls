@@ -146,7 +146,6 @@ defmodule ExDTLS do
   end
 
   # Server APi
-  @doc false
   @impl true
   def init(opts) do
     {:ok, pid} = Unifex.CNode.start_link(:native)
@@ -175,14 +174,12 @@ defmodule ExDTLS do
     {:ok, state}
   end
 
-  @doc false
   @impl true
   def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
     {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
     {:reply, msg, state}
   end
 
-  @doc false
   @impl true
   def handle_call({:process, packets}, _from, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :process, [packets])
@@ -226,31 +223,26 @@ defmodule ExDTLS do
     end
   end
 
-  @doc false
   @impl true
   def handle_call(:generate_cert, _from, %State{cnode: cnode} = state) do
     {:ok, cert} = Unifex.CNode.call(cnode, :generate_cert)
     {:reply, {:ok, cert}, state}
   end
 
-  @doc false
   @impl true
   def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
     {:reply, {:ok, digest}, state}
   end
 
-  @doc false
   @impl true
   def handle_call(:get_pkey, _from, %State{cnode: cnode} = state),
     do: {:reply, Unifex.CNode.call(cnode, :get_pkey), state}
 
-  @doc false
   @impl true
   def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
 
-  @doc false
   @impl true
   def terminate(_reason, %State{cnode: cnode}) do
     Unifex.CNode.stop(cnode)
