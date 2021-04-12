@@ -137,6 +137,14 @@ defmodule ExDTLS do
     GenServer.call(pid, {:process, packets})
   end
 
+  @doc """
+  Stops ExDTLS instance.
+  """
+  @spec stop(pid :: pid()) :: true
+  def stop(pid) do
+    Process.exit(pid, :normal)
+  end
+
   # Server APi
   @doc false
   @impl true
