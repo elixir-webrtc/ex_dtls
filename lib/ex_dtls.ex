@@ -29,10 +29,16 @@ defmodule ExDTLS do
   It's a keyword list containing the following keys:
   * `client_mode` - true if ExDTLS module should work as a client or false if as a server
   * `dtls_srtp` - true if DTLS-SRTP handshake should be performed or false if a normal one
+  * `pkey` - private key to use in this SSL context. Must corespond to `cert`.
+  * `cert` - certificate to use in this SSL context. Must corespond to `pkey`.
+
+  `pkey` and `cert` are optional. If not provided `ExDTLS` will generate them.
   """
   @type opts_t :: [
           client_mode: boolean(),
-          dtls_srtp: boolean()
+          dtls_srtp: boolean(),
+          pkey: binary(),
+          cert: binary()
         ]
 
   @typedoc """
@@ -58,6 +64,36 @@ defmodule ExDTLS do
   @spec start_link(opts :: opts_t) :: {:ok, pid}
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
+  end
+
+  @doc """
+  Generates new certificate.
+
+  Returns DER representation in binary format.
+  """
+  @spec generate_cert(pid :: pid()) :: cert :: binary()
+  def generate_cert(pid) do
+    GenServer.call(pid, :generate_cert)
+  end
+
+  @doc """
+  Gets current private key.
+
+  Returns key specific representation in binary format.
+  """
+  @spec get_pkey(pid :: pid()) :: pkey :: binary()
+  def get_pkey(pid) do
+    GenServer.call(pid, :get_pkey)
+  end
+
+  @doc """
+  Gets current certificate.
+
+  Returns DER representation in binary format.
+  """
+  @spec get_cert(pid :: pid()) :: cert :: binary()
+  def get_cert(pid) do
+    GenServer.call(pid, :get_cert)
   end
 
   @doc """
@@ -101,24 +137,49 @@ defmodule ExDTLS do
     GenServer.call(pid, {:process, packets})
   end
 
+  @doc """
+  Stops ExDTLS instance.
+  """
+  @spec stop(pid :: pid()) :: :ok
+  def stop(pid) do
+    GenServer.stop(pid, :normal)
+  end
+
   # Server APi
-  @doc false
   @impl true
   def init(opts) do
     {:ok, pid} = Unifex.CNode.start_link(:native)
-    :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+
+    cond do
+      opts[:pkey] == nil and opts[:cert] == nil ->
+        :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+
+      opts[:pkey] != nil and opts[:cert] != nil ->
+        :ok =
+          Unifex.CNode.call(pid, :init_from_key_cert, [
+            opts[:client_mode],
+            opts[:dtls_srtp],
+            opts[:pkey],
+            opts[:cert]
+          ])
+
+      true ->
+        raise("""
+        Private key or certificate is nil. If you want private key and certificate
+        to be generated don't pass any of them."
+        """)
+    end
+
     state = %State{cnode: pid, client_mode: opts[:client_mode]}
     {:ok, state}
   end
 
-  @doc false
   @impl true
   def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
     {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
     {:reply, msg, state}
   end
 
-  @doc false
   @impl true
   def handle_call({:process, packets}, _from, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :process, [packets])
@@ -162,11 +223,29 @@ defmodule ExDTLS do
     end
   end
 
-  @doc false
+  @impl true
+  def handle_call(:generate_cert, _from, %State{cnode: cnode} = state) do
+    {:ok, cert} = Unifex.CNode.call(cnode, :generate_cert)
+    {:reply, {:ok, cert}, state}
+  end
+
   @impl true
   def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
     {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
     {:reply, {:ok, digest}, state}
+  end
+
+  @impl true
+  def handle_call(:get_pkey, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :get_pkey), state}
+
+  @impl true
+  def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
+    do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+
+  @impl true
+  def terminate(_reason, %State{cnode: cnode}) do
+    Unifex.CNode.stop(cnode)
   end
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),

@@ -9,12 +9,56 @@
 void ssl_info_cb(const SSL *ssl, int where, int ret);
 int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,
                       State *state);
+UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
+                    EVP_PKEY *pkey, X509 *x509);
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
 UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 
 UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
+  UNIFEX_TERM res_term;
+
+  EVP_PKEY *pkey = gen_key();
+  if (pkey == NULL) {
+    res_term = unifex_raise(env, "Cannot generate key pair");
+    goto exit;
+  }
+
+  X509 *x509 = gen_cert(pkey);
+  if (x509 == NULL) {
+    res_term = unifex_raise(env, "Cannot generate cert");
+    goto exit;
+  }
+
+  res_term = do_init(env, client_mode, dtls_srtp, pkey, x509);
+exit:
+  return res_term;
+}
+
+UNIFEX_TERM init_from_key_cert(UnifexEnv *env, int client_mode, int dtls_srtp,
+                     UnifexPayload *pkey, UnifexPayload *cert) {
+  UNIFEX_TERM res_term;
+
+  EVP_PKEY *evp_pkey = decode_pkey(pkey->data, pkey->size);
+  if (evp_pkey == NULL) {
+    res_term = unifex_raise(env, "Cannot decode pkey");
+    goto exit;
+  }
+
+  X509 *x509 = decode_cert(cert->data, cert->size);
+  if (x509 == NULL) {
+    res_term = unifex_raise(env, "Cannot decode cert");
+    goto exit;
+  }
+
+  res_term = do_init(env, client_mode, dtls_srtp, evp_pkey, x509);
+exit:
+  return res_term;
+}
+
+UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
+                    EVP_PKEY *pkey, X509 *x509) {
   UNIFEX_TERM res_term;
   State *state = unifex_alloc_state(env);
   state->env = env;
@@ -25,23 +69,13 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
     goto exit;
   }
 
-  state->pkey = gen_key();
-  if (state->pkey == NULL) {
-    res_term = unifex_raise(env, "Cannot generate key pair");
-    goto exit;
-  }
-
+  state->pkey = pkey;
   if (SSL_CTX_use_PrivateKey(state->ssl_ctx, state->pkey) != 1) {
     res_term = unifex_raise(env, "Cannot set private key");
     goto exit;
   }
 
-  state->x509 = gen_cert(state->pkey);
-  if (state->x509 == NULL) {
-    res_term = unifex_raise(env, "Cannot generate cert");
-    goto exit;
-  }
-
+  state->x509 = x509;
   if (SSL_CTX_use_certificate(state->ssl_ctx, state->x509) != 1) {
     res_term = unifex_raise(env, "Cannot set cert");
     goto exit;
@@ -56,7 +90,7 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp) {
   state->client_mode = client_mode;
   state->hsk_finished = 0;
   SSL_set_info_callback(state->ssl, ssl_info_cb);
-  res_term = init_result_ok(env, state);
+  res_term = init_from_key_cert_result_ok(env, state);
 
 exit:
   unifex_release_state(env, state);
@@ -69,6 +103,54 @@ void ssl_info_cb(const SSL *ssl, int where, int ret) {
   if (where & SSL_CB_ALERT) {
     DEBUG("DTLS alert occurred.");
   }
+}
+
+UNIFEX_TERM generate_cert(UnifexEnv *env) {
+  int len;
+  unsigned char *p;
+
+  EVP_PKEY *pkey = gen_key();
+  X509 *cert = gen_cert(pkey);
+
+  len = i2d_X509(cert, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_X509(cert, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = generate_cert_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
+}
+
+UNIFEX_TERM get_pkey(UnifexEnv *env, State *state) {
+  int len;
+  unsigned char *p;
+
+  len = i2d_PrivateKey(state->pkey, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_PrivateKey(state->pkey, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = get_pkey_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
+}
+
+UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
+  int len;
+  unsigned char *p;
+
+  len = i2d_X509(state->x509, NULL);
+  UnifexPayload *payload =
+      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
+  p = payload->data;
+  i2d_X509(state->x509, &p);
+  payload->size = len;
+  UNIFEX_TERM res_term = get_cert_result_ok(env, payload);
+  unifex_payload_release(payload);
+  return res_term;
 }
 
 UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
@@ -268,10 +350,6 @@ void handle_destroy_state(UnifexEnv *env, State *state) {
 
   if (state->ssl) {
     SSL_free(state->ssl);
-  }
-
-  if (state->pkey) {
-    EVP_PKEY_free(state->pkey);
   }
 
   if (state->x509) {
