@@ -81,7 +81,7 @@ defmodule ExDTLS do
 
   Returns key specific representation in binary format.
   """
-  @spec get_pkey(pid :: pid()) :: pkey :: binary()
+  @spec get_pkey(pid :: pid()) :: pkey :: {:ok, binary()}
   def get_pkey(pid) do
     GenServer.call(pid, :get_pkey)
   end
@@ -91,7 +91,7 @@ defmodule ExDTLS do
 
   Returns DER representation in binary format.
   """
-  @spec get_cert(pid :: pid()) :: cert :: binary()
+  @spec get_cert(pid :: pid()) :: cert :: {:ok, binary()}
   def get_cert(pid) do
     GenServer.call(pid, :get_cert)
   end
