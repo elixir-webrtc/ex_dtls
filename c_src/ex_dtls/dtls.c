@@ -159,7 +159,7 @@ X509 *gen_cert(EVP_PKEY *pkey) {
 
   ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
 
-  if (X509_gmtime_adj(X509_get_notBefore(x509), 0) == 0 ||
+  if (X509_gmtime_adj(X509_get_notBefore(x509), -31536000L) == 0 ||
       X509_gmtime_adj(X509_get_notAfter(x509), 31536000L) == 0) {
     DEBUG("Cannot set cert time validity");
     return NULL;

@@ -37,7 +37,7 @@ exit:
 }
 
 UNIFEX_TERM init_from_key_cert(UnifexEnv *env, int client_mode, int dtls_srtp,
-                     UnifexPayload *pkey, UnifexPayload *cert) {
+                               UnifexPayload *pkey, UnifexPayload *cert) {
   UNIFEX_TERM res_term;
 
   EVP_PKEY *evp_pkey = decode_pkey(pkey->data, pkey->size);
@@ -248,7 +248,7 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   case SSL_ERROR_ZERO_RETURN:
     return process_result_connection_closed_peer_closed_for_writing(state->env);
   case SSL_ERROR_WANT_READ:
-    DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?")
+    DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?");
     return process_result_hsk_want_read(state->env);
   default:
     DEBUG("SSL ERROR: %d", error);
