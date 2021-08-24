@@ -10,17 +10,20 @@ defmodule ExDTLS do
   use GenServer
 
   require Unifex.CNode
-  require Membrane.Logger
 
   defmodule State do
     @moduledoc false
 
     @type t :: %__MODULE__{
             cnode: Unifex.CNode.t(),
-            client_mode: boolean()
+            client_mode: boolean(),
+            parent: pid(),
+            finished?: boolean()
           }
     defstruct cnode: nil,
-              client_mode: false
+              client_mode: false,
+              parent: nil,
+              finished?: false
   end
 
   @typedoc """
@@ -38,7 +41,8 @@ defmodule ExDTLS do
           client_mode: boolean(),
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary()
+          cert: binary(),
+          parent: pid()
         ]
 
   @typedoc """
@@ -170,7 +174,7 @@ defmodule ExDTLS do
         """)
     end
 
-    state = %State{cnode: pid, client_mode: opts[:client_mode]}
+    state = %State{cnode: pid, client_mode: opts[:client_mode], parent: opts[:parent]}
     {:ok, state}
   end
 
@@ -184,43 +188,50 @@ defmodule ExDTLS do
   def handle_call({:process, packets}, _from, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :process, [packets])
 
-    case msg do
-      {:ok, _packets} = msg ->
-        {:reply, msg, state}
+    {:reply, message, state} =
+      case msg do
+        {:ok, _packets} = msg ->
+          {:reply, msg, state}
 
-      :hsk_want_read ->
-        {:reply, :handshake_want_read, state}
+        :hsk_want_read ->
+          {:reply, :handshake_want_read, state}
 
-      {:hsk_packets, packets} ->
-        {:reply, {:handshake_packets, packets}, state}
+        {:hsk_packets, packets} ->
+          {:reply, {:handshake_packets, packets}, state}
 
-      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
-        {local_km, remote_km} =
-          get_local_and_remote_km(
-            client_keying_material,
-            server_keying_material,
-            state.client_mode
-          )
+        {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
+          {local_km, remote_km} =
+            get_local_and_remote_km(
+              client_keying_material,
+              server_keying_material,
+              state.client_mode
+            )
 
-        handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:handshake_finished, handshake_data}
-        {:reply, msg, state}
+          handshake_data = {local_km, remote_km, protection_profile}
+          msg = {:handshake_finished, handshake_data}
+          {:reply, msg, state}
 
-      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, packets} ->
-        {local_km, remote_km} =
-          get_local_and_remote_km(
-            client_keying_material,
-            server_keying_material,
-            state.client_mode
-          )
+        {:hsk_finished, client_keying_material, server_keying_material, protection_profile,
+         packets} ->
+          {local_km, remote_km} =
+            get_local_and_remote_km(
+              client_keying_material,
+              server_keying_material,
+              state.client_mode
+            )
 
-        handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:handshake_finished, handshake_data, packets}
-        {:reply, msg, state}
+          handshake_data = {local_km, remote_km, protection_profile}
+          msg = {:handshake_finished, handshake_data, packets}
+          state = %{state | finished?: true}
+          {:reply, msg, state}
 
-      {:connection_closed, _reason} = msg ->
-        {:reply, msg, state}
-    end
+        {:connection_closed, _reason} = msg ->
+          {:reply, msg, state}
+      end
+
+    :timer.send_after(1000, {:retransmit, message, 2})
+
+    {:reply, message, state}
   end
 
   @impl true
@@ -242,6 +253,16 @@ defmodule ExDTLS do
   @impl true
   def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+
+  @impl true
+  def handle_info({:retransmit, message, counter}, state) do
+    if message != :handshake_want_read and counter < 60 and not state.finished? do
+      send(state.parent, {:retransmit, 1, message})
+      :timer.send_after(counter * 1000, {:retransmit, message, counter * 2})
+    end
+
+    {:noreply, state}
+  end
 
   @impl true
   def terminate(_reason, %State{cnode: cnode}) do
