@@ -325,10 +325,11 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
   }
 }
 
-UNIFEX_TERM retransmit_packets(UnifexEnv *env, State *state) {
+UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
   long result = DTLSv1_handle_timeout(state->ssl);
   if (result != 1)
-    return process_result_hsk_want_read(state->env);
+    return handle_timeout_result_ok(env, state);
+
   BIO *wbio = SSL_get_wbio(state->ssl);
   size_t pending_data_len = BIO_ctrl_pending(wbio);
   char *pending_data = (char *)malloc(pending_data_len * sizeof(char));
@@ -342,7 +343,8 @@ UNIFEX_TERM retransmit_packets(UnifexEnv *env, State *state) {
         env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
     memcpy(gen_packets->data, pending_data, pending_data_len);
     gen_packets->size = (unsigned int)pending_data_len;
-    UNIFEX_TERM res_term = do_handshake_result_ok(env, state, gen_packets);
+    UNIFEX_TERM res_term =
+        handle_timeout_result_retransmit(env, state, gen_packets);
     unifex_payload_release(gen_packets);
     return res_term;
   }
