@@ -196,6 +196,7 @@ defmodule ExDTLS do
           {:handshake_want_read, state}
 
         {:hsk_packets, packets} ->
+          Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
           {{:handshake_packets, packets}, state}
 
         {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
@@ -228,8 +229,6 @@ defmodule ExDTLS do
           {msg, state}
       end
 
-    Process.send_after(self(), {:retransmit, parent, 2}, 1000)
-
     {:reply, message, state}
   end
 
@@ -254,11 +253,11 @@ defmodule ExDTLS do
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
 
   @impl true
-  def handle_info({:retransmit, parent, timeout}, %State{cnode: cnode} = state) do
+  def handle_info({:handle_timeout, reply_pid, timeout}, %State{cnode: cnode} = state) do
     case Unifex.CNode.call(cnode, :handle_timeout) do
       {:retransmit, packets} when timeout < @max_retransmit_timeout and not state.finished? ->
-        send(parent, {:retransmit, 1, packets})
-        Process.send_after(self(), {:retransmit, parent, timeout * 2}, timeout * 1000)
+        send(reply_pid, {:retransmit, 1, packets})
+        Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
 
       _other ->
         nil
