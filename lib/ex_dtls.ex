@@ -68,6 +68,14 @@ defmodule ExDTLS do
   end
 
   @doc """
+  Starts ExDTLS GenServer process linked to the current process.
+  """
+  @spec start(opts :: opts_t) :: {:ok, pid}
+  def start(opts) do
+    GenServer.start(__MODULE__, opts)
+  end
+
+  @doc """
   Generates new certificate.
 
   Returns DER representation in binary format.
@@ -148,6 +156,15 @@ defmodule ExDTLS do
 
   @max_retransmit_timeout 60
 
+  @doc """
+  Returns max retransmission timeout after which `ExDTLS` will raise an error.
+
+  Timer starts at one second and is doubled each time `ExDTLS` does not receive a response.
+  After reaching `@max_retransmission_timeout` `ExDTLS` will raise an error.
+  """
+  @spec get_max_retransmit_timeout() :: non_neg_integer()
+  def get_max_retransmit_timeout(), do: @max_retransmit_timeout
+
   # Server APi
   @impl true
   def init(opts) do
@@ -178,8 +195,9 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
+  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{cnode: cnode} = state) do
     {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
+    Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end
 
@@ -253,14 +271,20 @@ defmodule ExDTLS do
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
 
   @impl true
-  def handle_info({:handle_timeout, reply_pid, timeout}, %State{cnode: cnode} = state) do
-    case Unifex.CNode.call(cnode, :handle_timeout) do
-      {:retransmit, packets} when timeout < @max_retransmit_timeout and not state.finished? ->
-        send(reply_pid, {:retransmit, 1, packets})
-        Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
+  def handle_info({:handle_timeout, _reply_pid, timeout}, %State{finished?: false})
+      when timeout >= @max_retransmit_timeout,
+      do: raise("DTLS handshake reached max retransmission number")
 
-      _other when timeout >= @max_retransmit_timeout and not state.finished? ->
-        raise "Reach max retransmit timeout"
+  @impl true
+  def handle_info(
+        {:handle_timeout, reply_pid, timeout},
+        %State{cnode: cnode, finished?: false} = state
+      )
+      when timeout < @max_retransmit_timeout do
+    case Unifex.CNode.call(cnode, :handle_timeout) do
+      {:retransmit, packets} ->
+        send(reply_pid, {:retransmit, self(), packets})
+        Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
 
       _other ->
         nil
@@ -268,6 +292,9 @@ defmodule ExDTLS do
 
     {:noreply, state}
   end
+
+  @impl true
+  def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, %State{cnode: cnode}) do
