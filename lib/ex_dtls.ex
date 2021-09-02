@@ -259,6 +259,9 @@ defmodule ExDTLS do
         send(reply_pid, {:retransmit, 1, packets})
         Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
 
+      _other when timeout >= @max_retransmit_timeout and not state.finished? ->
+        raise "Reach max retransmit timeout"
+
       _other ->
         nil
     end
