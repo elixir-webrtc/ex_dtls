@@ -60,8 +60,6 @@ defmodule ExDTLS.RetransmissionTest do
 
     time = counter * 1_000
 
-    IO.inspect(time, label: :time)
-
     receive do
       ^time ->
         :ok
