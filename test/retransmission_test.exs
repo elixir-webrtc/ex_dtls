@@ -54,7 +54,16 @@ defmodule ExDTLS.RetransmissionTest do
     # ignore retransmissions
     Process.sleep(ExDTLS.get_max_retransmit_timeout() * 2_000)
 
-    assert_received({:DOWN, ^tx_monitor, :process, ^tx_pid, _}, 2000)
-    assert_received({:DOWN, ^rx_monitor, :process, ^rx_pid, _}, 2000)
+    assert_received(
+      {:DOWN, ^tx_monitor, :process, ^tx_pid,
+       {%RuntimeError{message: "DTLS handshake reached max retransmission number"}, _}},
+      2000
+    )
+
+    assert_received(
+      {:DOWN, ^rx_monitor, :process, ^rx_pid,
+       {%RuntimeError{message: "DTLS handshake reached max retransmission number"}, _}},
+      2000
+    )
   end
 end
