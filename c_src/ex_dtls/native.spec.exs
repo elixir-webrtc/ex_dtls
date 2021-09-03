@@ -18,6 +18,9 @@ spec get_cert_fingerprint(state) :: {:ok :: label, state, fingerprint :: payload
 
 spec do_handshake(state) :: {:ok :: label, state, packets :: payload}
 
+spec handle_timeout(state) :: {:ok :: label, state}
+                           | {:retransmit :: label, state, packets :: payload}
+
 spec process(state, packets :: payload) :: {:ok :: label, state, packets :: payload}
                                            | (:hsk_want_read :: label)
                                            | {:hsk_packets :: label, state, packets :: payload}

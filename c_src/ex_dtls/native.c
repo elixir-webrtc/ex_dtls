@@ -325,6 +325,27 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
   }
 }
 
+UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
+  long result = DTLSv1_handle_timeout(state->ssl);
+  if (result != 1)
+    return handle_timeout_result_ok(env, state);
+
+  BIO *wbio = SSL_get_wbio(state->ssl);
+  size_t pending_data_len = BIO_ctrl_pending(wbio);
+  UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
+      env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+
+  if (read_pending_data(gen_packets, pending_data_len, state) < 0) {
+    return unifex_raise(state->env,
+                        "Retransmit handshake failed: write BIO error");
+  } else {
+    UNIFEX_TERM res_term =
+        handle_timeout_result_retransmit(env, state, gen_packets);
+    unifex_payload_release(gen_packets);
+    return res_term;
+  }
+}
+
 int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,
                       State *state) {
   char *pending_data = (char *)malloc(pending_data_len * sizeof(char));

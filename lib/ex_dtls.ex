@@ -10,17 +10,18 @@ defmodule ExDTLS do
   use GenServer
 
   require Unifex.CNode
-  require Membrane.Logger
 
   defmodule State do
     @moduledoc false
 
     @type t :: %__MODULE__{
             cnode: Unifex.CNode.t(),
-            client_mode: boolean()
+            client_mode: boolean(),
+            finished?: boolean()
           }
     defstruct cnode: nil,
-              client_mode: false
+              client_mode: false,
+              finished?: false
   end
 
   @typedoc """
@@ -64,6 +65,14 @@ defmodule ExDTLS do
   @spec start_link(opts :: opts_t) :: {:ok, pid}
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
+  end
+
+  @doc """
+  Starts ExDTLS GenServer process linked to the current process.
+  """
+  @spec start(opts :: opts_t) :: {:ok, pid}
+  def start(opts) do
+    GenServer.start(__MODULE__, opts)
   end
 
   @doc """
@@ -145,6 +154,17 @@ defmodule ExDTLS do
     GenServer.stop(pid, :normal)
   end
 
+  @max_retransmit_timeout 60
+
+  @doc """
+  Returns max retransmission timeout after which `ExDTLS` will raise an error.
+
+  Timer starts at one second and is doubled each time `ExDTLS` does not receive a response.
+  After reaching `@max_retransmission_timeout` `ExDTLS` will raise an error.
+  """
+  @spec get_max_retransmit_timeout() :: non_neg_integer()
+  def get_max_retransmit_timeout(), do: @max_retransmit_timeout
+
   # Server APi
   @impl true
   def init(opts) do
@@ -175,52 +195,59 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call({:do_handshake, packets}, _from, %State{cnode: cnode} = state) do
+  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{cnode: cnode} = state) do
     {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
+    Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end
 
   @impl true
-  def handle_call({:process, packets}, _from, %State{cnode: cnode} = state) do
+  def handle_call({:process, packets}, {parent, _alias}, %State{cnode: cnode} = state) do
     msg = Unifex.CNode.call(cnode, :process, [packets])
 
-    case msg do
-      {:ok, _packets} = msg ->
-        {:reply, msg, state}
+    {message, state} =
+      case msg do
+        {:ok, _packets} = msg ->
+          {msg, state}
 
-      :hsk_want_read ->
-        {:reply, :handshake_want_read, state}
+        :hsk_want_read ->
+          {:handshake_want_read, state}
 
-      {:hsk_packets, packets} ->
-        {:reply, {:handshake_packets, packets}, state}
+        {:hsk_packets, packets} ->
+          Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
+          {{:handshake_packets, packets}, state}
 
-      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
-        {local_km, remote_km} =
-          get_local_and_remote_km(
-            client_keying_material,
-            server_keying_material,
-            state.client_mode
-          )
+        {:hsk_finished, client_keying_material, server_keying_material, protection_profile, <<>>} ->
+          {local_km, remote_km} =
+            get_local_and_remote_km(
+              client_keying_material,
+              server_keying_material,
+              state.client_mode
+            )
 
-        handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:handshake_finished, handshake_data}
-        {:reply, msg, state}
+          handshake_data = {local_km, remote_km, protection_profile}
+          msg = {:handshake_finished, handshake_data}
+          {msg, state}
 
-      {:hsk_finished, client_keying_material, server_keying_material, protection_profile, packets} ->
-        {local_km, remote_km} =
-          get_local_and_remote_km(
-            client_keying_material,
-            server_keying_material,
-            state.client_mode
-          )
+        {:hsk_finished, client_keying_material, server_keying_material, protection_profile,
+         packets} ->
+          {local_km, remote_km} =
+            get_local_and_remote_km(
+              client_keying_material,
+              server_keying_material,
+              state.client_mode
+            )
 
-        handshake_data = {local_km, remote_km, protection_profile}
-        msg = {:handshake_finished, handshake_data, packets}
-        {:reply, msg, state}
+          handshake_data = {local_km, remote_km, protection_profile}
+          msg = {:handshake_finished, handshake_data, packets}
+          state = %{state | finished?: true}
+          {msg, state}
 
-      {:connection_closed, _reason} = msg ->
-        {:reply, msg, state}
-    end
+        {:connection_closed, _reason} = msg ->
+          {msg, state}
+      end
+
+    {:reply, message, state}
   end
 
   @impl true
@@ -242,6 +269,32 @@ defmodule ExDTLS do
   @impl true
   def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
     do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+
+  @impl true
+  def handle_info({:handle_timeout, _reply_pid, timeout}, %State{finished?: false})
+      when timeout >= @max_retransmit_timeout,
+      do: raise("DTLS handshake reached max retransmission number")
+
+  @impl true
+  def handle_info(
+        {:handle_timeout, reply_pid, timeout},
+        %State{cnode: cnode, finished?: false} = state
+      )
+      when timeout < @max_retransmit_timeout do
+    case Unifex.CNode.call(cnode, :handle_timeout) do
+      {:retransmit, packets} ->
+        send(reply_pid, {:retransmit, self(), packets})
+        Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
+
+      _other ->
+        nil
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, %State{cnode: cnode}) do
