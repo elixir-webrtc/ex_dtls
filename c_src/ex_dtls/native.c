@@ -113,13 +113,13 @@ UNIFEX_TERM generate_cert(UnifexEnv *env) {
   X509 *cert = gen_cert(pkey);
 
   len = i2d_X509(cert, NULL);
-  UnifexPayload *payload =
-      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-  p = payload->data;
+  UnifexPayload payload;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len, &payload);
+  p = payload.data;
   i2d_X509(cert, &p);
-  payload->size = len;
-  UNIFEX_TERM res_term = generate_cert_result_ok(env, payload);
-  unifex_payload_release(payload);
+  payload.size = len;
+  UNIFEX_TERM res_term = generate_cert_result_ok(env, &payload);
+  unifex_payload_release(&payload);
   return res_term;
 }
 
@@ -128,13 +128,13 @@ UNIFEX_TERM get_pkey(UnifexEnv *env, State *state) {
   unsigned char *p;
 
   len = i2d_PrivateKey(state->pkey, NULL);
-  UnifexPayload *payload =
-      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-  p = payload->data;
+  UnifexPayload payload;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len, &payload);
+  p = payload.data;
   i2d_PrivateKey(state->pkey, &p);
-  payload->size = len;
-  UNIFEX_TERM res_term = get_pkey_result_ok(env, payload);
-  unifex_payload_release(payload);
+  payload.size = len;
+  UNIFEX_TERM res_term = get_pkey_result_ok(env, &payload);
+  unifex_payload_release(&payload);
   return res_term;
 }
 
@@ -143,13 +143,13 @@ UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
   unsigned char *p;
 
   len = i2d_X509(state->x509, NULL);
-  UnifexPayload *payload =
-      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len);
-  p = payload->data;
+  UnifexPayload payload;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, len, &payload);
+  p = payload.data;
   i2d_X509(state->x509, &p);
-  payload->size = len;
-  UNIFEX_TERM res_term = get_cert_result_ok(env, payload);
-  unifex_payload_release(payload);
+  payload.size = len;
+  UNIFEX_TERM res_term = get_cert_result_ok(env, &payload);
+  unifex_payload_release(&payload);
   return res_term;
 }
 
@@ -159,12 +159,12 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   if (X509_digest(state->x509, EVP_sha256(), md, &size) != 1) {
     return unifex_raise(env, "Can't get cert fingerprint");
   }
-  UnifexPayload *payload =
-      (UnifexPayload *)unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, size);
-  memcpy(payload->data, md, size);
-  payload->size = size;
-  UNIFEX_TERM res_term = get_cert_fingerprint_result_ok(env, state, payload);
-  unifex_payload_release(payload);
+  UnifexPayload payload;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, size, &payload);
+  memcpy(payload.data, md, size);
+  payload.size = size;
+  UNIFEX_TERM res_term = get_cert_fingerprint_result_ok(env, state, &payload);
+  unifex_payload_release(&payload);
   return res_term;
 }
 
@@ -184,12 +184,12 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       return unifex_raise(state->env, "Handshake failed: write BIO error");
     } else {
       DEBUG("WBIO: read: %d bytes", read_bytes);
-      UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
-          env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
-      memcpy(gen_packets->data, pending_data, pending_data_len);
-      gen_packets->size = (unsigned int)pending_data_len;
-      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, gen_packets);
-      unifex_payload_release(gen_packets);
+      UnifexPayload gen_packets;
+      unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &gen_packets);
+      memcpy(gen_packets.data, pending_data, pending_data_len);
+      gen_packets.size = (unsigned int)pending_data_len;
+      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, &gen_packets);
+      unifex_payload_release(&gen_packets);
       return res_term;
     }
   }
@@ -229,12 +229,12 @@ UNIFEX_TERM process(UnifexEnv *env, State *state, UnifexPayload *payload) {
 
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
   if (ret > 0) {
-    UnifexPayload *packets = (UnifexPayload *)unifex_payload_alloc(
-        state->env, UNIFEX_PAYLOAD_BINARY, ret);
-    memcpy(packets->data, data, ret);
-    packets->size = (unsigned int)ret;
-    UNIFEX_TERM res_term = process_result_ok(state->env, state, packets);
-    unifex_payload_release(packets);
+    UnifexPayload packets;
+    unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, ret, &packets);
+    memcpy(packets.data, data, ret);
+    packets.size = (unsigned int)ret;
+    UNIFEX_TERM res_term = process_result_ok(state->env, state, &packets);
+    unifex_payload_release(&packets);
     return res_term;
   }
 
@@ -258,7 +258,7 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
 
 UNIFEX_TERM handle_handshake_finished(State *state) {
   UNIFEX_TERM res_term;
-  UnifexPayload *gen_packets;
+  UnifexPayload gen_packets;
   KeyingMaterial *keying_material = export_keying_material(state->ssl);
   if (keying_material == NULL) {
     DEBUG("Cannot export keying material");
@@ -267,35 +267,34 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
   }
 
   int len = keying_material->len;
-  UnifexPayload *client_keying_material = (UnifexPayload *)unifex_payload_alloc(
-      state->env, UNIFEX_PAYLOAD_BINARY, len);
-  memcpy(client_keying_material->data, keying_material->client, len);
-  client_keying_material->size = len;
+  UnifexPayload client_keying_material;
+  unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, len, &client_keying_material);
+  memcpy(client_keying_material.data, keying_material->client, len);
+  client_keying_material.size = len;
 
-  UnifexPayload *server_keying_material = (UnifexPayload *)unifex_payload_alloc(
-      state->env, UNIFEX_PAYLOAD_BINARY, len);
-  memcpy(server_keying_material->data, keying_material->server, len);
-  server_keying_material->size = len;
+  UnifexPayload server_keying_material;
+  unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, len, &server_keying_material);
+  memcpy(server_keying_material.data, keying_material->server, len);
+  server_keying_material.size = len;
 
   size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
   DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
 
-  gen_packets = (UnifexPayload *)unifex_payload_alloc(
-      state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+  unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &gen_packets);
   if (pending_data_len > 0) {
-    if (read_pending_data(gen_packets, pending_data_len, state) < 0) {
+    if (read_pending_data(&gen_packets, pending_data_len, state) < 0) {
       res_term = unifex_raise(state->env, "Handshake failed: write BIO error");
       goto cleanup;
     }
   }
   state->hsk_finished = 1;
   res_term = process_result_hsk_finished(
-      state->env, state, client_keying_material, server_keying_material,
-      keying_material->protection_profile, gen_packets);
+      state->env, state, &client_keying_material, &server_keying_material,
+      keying_material->protection_profile, &gen_packets);
 cleanup:
-  unifex_payload_release(gen_packets);
-  unifex_payload_release(client_keying_material);
-  unifex_payload_release(server_keying_material);
+  unifex_payload_release(&gen_packets);
+  unifex_payload_release(&client_keying_material);
+  unifex_payload_release(&server_keying_material);
   return res_term;
 }
 
@@ -308,14 +307,14 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
     DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
 
     if (pending_data_len > 0) {
-      UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
-          state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
-      if (read_pending_data(gen_packets, pending_data_len, state) < 0) {
+      UnifexPayload gen_packets;
+      unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &gen_packets);
+      if (read_pending_data(&gen_packets, pending_data_len, state) < 0) {
         return unifex_raise(state->env, "Handshake failed: write BIO error");
       }
       UNIFEX_TERM res_term =
-          process_result_hsk_packets(state->env, state, gen_packets);
-      unifex_payload_release(gen_packets);
+          process_result_hsk_packets(state->env, state, &gen_packets);
+      unifex_payload_release(&gen_packets);
       return res_term;
     } else {
       return process_result_hsk_want_read(state->env);
@@ -332,16 +331,16 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
 
   BIO *wbio = SSL_get_wbio(state->ssl);
   size_t pending_data_len = BIO_ctrl_pending(wbio);
-  UnifexPayload *gen_packets = (UnifexPayload *)unifex_payload_alloc(
-      env, UNIFEX_PAYLOAD_BINARY, pending_data_len);
+  UnifexPayload gen_packets;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &gen_packets);
 
-  if (read_pending_data(gen_packets, pending_data_len, state) < 0) {
+  if (read_pending_data(&gen_packets, pending_data_len, state) < 0) {
     return unifex_raise(state->env,
                         "Retransmit handshake failed: write BIO error");
   } else {
     UNIFEX_TERM res_term =
-        handle_timeout_result_retransmit(env, state, gen_packets);
-    unifex_payload_release(gen_packets);
+        handle_timeout_result_retransmit(env, state, &gen_packets);
+    unifex_payload_release(&gen_packets);
     return res_term;
   }
 }
