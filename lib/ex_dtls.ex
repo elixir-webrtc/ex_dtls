@@ -68,7 +68,7 @@ defmodule ExDTLS do
   end
 
   @doc """
-  Starts ExDTLS GenServer process linked to the current process.
+  Works similarly to `start_link/1`, but does not link to the current process.
   """
   @spec start(opts :: opts_t) :: {:ok, pid}
   def start(opts) do
