@@ -24,6 +24,14 @@ end
 ```
 
 ## Usage
+`ExDTLS` can work both as a `C node` or as a `NIF`.
+By default `C node` implementation is used however, user can change it by passing proper option while starting `ExDTLS` 
+or in `config.exs` by:
+
+```elixir
+config :ex_dtls, impl: :NIF
+```
+
 Init `ExDTLS` on both peers with:
 ```elixir
 {:ok, dtls} = ExDTLS.start_link(client_mode, dtls_srtp)

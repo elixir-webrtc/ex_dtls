@@ -32,12 +32,13 @@ defmodule ExDTLS do
   Type describing ExDTLS configuration.
 
   It's a keyword list containing the following keys:
-  * `client_mode` - true if ExDTLS module should work as a client or false if as a server
-  * `dtls_srtp` - true if DTLS-SRTP handshake should be performed or false if a normal one
-  * `pkey` - private key to use in this SSL context. Must corespond to `cert`.
-  * `cert` - certificate to use in this SSL context. Must corespond to `pkey`.
+  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
+  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
+  * `pkey` - private key to use in this SSL context. Must corespond to `cert`
+  * `cert` - certificate to use in this SSL context. Must corespond to `pkey`
+  * `impl` - `NIF` if ExDTLS should run as a NIF or `CNode` in other case. By default CNode implementation is used
 
-  `pkey` and `cert` are optional. If not provided `ExDTLS` will generate them.
+  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
   """
   @type opts_t :: [
           client_mode: boolean(),
