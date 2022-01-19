@@ -61,7 +61,7 @@ UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
                     EVP_PKEY *pkey, X509 *x509) {
   UNIFEX_TERM res_term;
   State *state = unifex_alloc_state(env);
-  state->env = env;
+  state->env = unifex_alloc_env(env);
 
   state->ssl_ctx = create_ctx(dtls_srtp);
   if (state->ssl_ctx == NULL) {
@@ -105,7 +105,7 @@ void ssl_info_cb(const SSL *ssl, int where, int ret) {
   }
 }
 
-UNIFEX_TERM generate_cert(UnifexEnv *env) {
+UNIFEX_TERM generate_cert(UnifexEnv *env, State *state) {
   int len;
   unsigned char *p;
 
@@ -118,7 +118,7 @@ UNIFEX_TERM generate_cert(UnifexEnv *env) {
   p = payload.data;
   i2d_X509(cert, &p);
   payload.size = len;
-  UNIFEX_TERM res_term = generate_cert_result_ok(env, &payload);
+  UNIFEX_TERM res_term = generate_cert_result_ok(env, &payload, state);
   unifex_payload_release(&payload);
   return res_term;
 }
@@ -133,7 +133,7 @@ UNIFEX_TERM get_pkey(UnifexEnv *env, State *state) {
   p = payload.data;
   i2d_PrivateKey(state->pkey, &p);
   payload.size = len;
-  UNIFEX_TERM res_term = get_pkey_result_ok(env, &payload);
+  UNIFEX_TERM res_term = get_pkey_result_ok(env, &payload, state);
   unifex_payload_release(&payload);
   return res_term;
 }
@@ -148,7 +148,7 @@ UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
   p = payload.data;
   i2d_X509(state->x509, &p);
   payload.size = len;
-  UNIFEX_TERM res_term = get_cert_result_ok(env, &payload);
+  UNIFEX_TERM res_term = get_cert_result_ok(env, &payload, state);
   unifex_payload_release(&payload);
   return res_term;
 }
@@ -163,7 +163,7 @@ UNIFEX_TERM get_cert_fingerprint(UnifexEnv *env, State *state) {
   unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, size, &payload);
   memcpy(payload.data, md, size);
   payload.size = size;
-  UNIFEX_TERM res_term = get_cert_fingerprint_result_ok(env, state, &payload);
+  UNIFEX_TERM res_term = get_cert_fingerprint_result_ok(env, &payload, state);
   unifex_payload_release(&payload);
   return res_term;
 }
@@ -188,7 +188,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &gen_packets);
       memcpy(gen_packets.data, pending_data, pending_data_len);
       gen_packets.size = (unsigned int)pending_data_len;
-      UNIFEX_TERM res_term = do_handshake_result_ok(env, state, &gen_packets);
+      UNIFEX_TERM res_term = do_handshake_result_ok(env, &gen_packets, state);
       unifex_payload_release(&gen_packets);
       return res_term;
     }
@@ -246,10 +246,10 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   int error = SSL_get_error(state->ssl, ret);
   switch (error) {
   case SSL_ERROR_ZERO_RETURN:
-    return process_result_connection_closed_peer_closed_for_writing(state->env);
+    return process_result_connection_closed_peer_closed_for_writing(state->env, state);
   case SSL_ERROR_WANT_READ:
     DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?");
-    return process_result_hsk_want_read(state->env);
+    return process_result_hsk_want_read(state->env, state);
   default:
     DEBUG("SSL ERROR: %d", error);
     return unifex_raise(state->env, "SSL read error");
@@ -289,8 +289,8 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
   }
   state->hsk_finished = 1;
   res_term = process_result_hsk_finished(
-      state->env, state, &client_keying_material, &server_keying_material,
-      keying_material->protection_profile, &gen_packets);
+      state->env, &client_keying_material, &server_keying_material,
+      keying_material->protection_profile, &gen_packets, state);
 cleanup:
   unifex_payload_release(&gen_packets);
   unifex_payload_release(&client_keying_material);
@@ -313,11 +313,11 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
         return unifex_raise(state->env, "Handshake failed: write BIO error");
       }
       UNIFEX_TERM res_term =
-          process_result_hsk_packets(state->env, state, &gen_packets);
+          process_result_hsk_packets(state->env, &gen_packets, state);
       unifex_payload_release(&gen_packets);
       return res_term;
     } else {
-      return process_result_hsk_want_read(state->env);
+      return process_result_hsk_want_read(state->env, state);
     }
   default:
     return handle_read_error(state, ret);
@@ -339,7 +339,7 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
                         "Retransmit handshake failed: write BIO error");
   } else {
     UNIFEX_TERM res_term =
-        handle_timeout_result_retransmit(env, state, &gen_packets);
+        handle_timeout_result_retransmit(env, &gen_packets, state);
     unifex_payload_release(&gen_packets);
     return res_term;
   }

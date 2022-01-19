@@ -17,11 +17,15 @@ defmodule ExDTLS do
     @type t :: %__MODULE__{
             cnode: Unifex.CNode.t(),
             client_mode: boolean(),
-            finished?: boolean()
+            finished?: boolean(),
+            impl: NIF | CNode,
+            native_state: reference()
           }
     defstruct cnode: nil,
               client_mode: false,
-              finished?: false
+              finished?: false,
+              impl: CNode,
+              native_state: nil
   end
 
   @typedoc """
@@ -39,7 +43,8 @@ defmodule ExDTLS do
           client_mode: boolean(),
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary()
+          cert: binary(),
+          impl: NIF | CNode
         ]
 
   @typedoc """
@@ -168,42 +173,47 @@ defmodule ExDTLS do
   # Server APi
   @impl true
   def init(opts) do
-    {:ok, pid} = Unifex.CNode.start_link(:native)
+    impl = Application.get_env(:ex_dtls, :impl) || opts[:impl] || CNode
+    state = %State{client_mode: opts[:client_mode], impl: impl}
 
-    cond do
-      opts[:pkey] == nil and opts[:cert] == nil ->
-        :ok = Unifex.CNode.call(pid, :init, [opts[:client_mode], opts[:dtls_srtp]])
+    {:ok, state} =
+      cond do
+        opts[:pkey] == nil and opts[:cert] == nil ->
+          call(impl, :init, [opts[:client_mode], opts[:dtls_srtp]], state)
 
-      opts[:pkey] != nil and opts[:cert] != nil ->
-        :ok =
-          Unifex.CNode.call(pid, :init_from_key_cert, [
-            opts[:client_mode],
-            opts[:dtls_srtp],
-            opts[:pkey],
-            opts[:cert]
-          ])
+        opts[:pkey] != nil and opts[:cert] != nil ->
+          call(
+            impl,
+            :init_from_key_cert,
+            [
+              opts[:client_mode],
+              opts[:dtls_srtp],
+              opts[:pkey],
+              opts[:cert]
+            ],
+            state
+          )
 
-      true ->
-        raise("""
-        Private key or certificate is nil. If you want private key and certificate
-        to be generated don't pass any of them."
-        """)
-    end
+        true ->
+          raise("""
+          Private key or certificate is nil. If you want private key and certificate
+          to be generated don't pass any of them."
+          """)
+      end
 
-    state = %State{cnode: pid, client_mode: opts[:client_mode]}
     {:ok, state}
   end
 
   @impl true
-  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{cnode: cnode} = state) do
-    {:ok, _packets} = msg = Unifex.CNode.call(cnode, :do_handshake, [packets])
+  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{impl: impl} = state) do
+    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [packets], state)
     Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end
 
   @impl true
-  def handle_call({:process, packets}, {parent, _alias}, %State{cnode: cnode} = state) do
-    msg = Unifex.CNode.call(cnode, :process, [packets])
+  def handle_call({:process, packets}, {parent, _alias}, %State{impl: impl} = state) do
+    {msg, state} = call(impl, :process, [packets], state)
 
     {message, state} =
       case msg do
@@ -251,24 +261,28 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call(:generate_cert, _from, %State{cnode: cnode} = state) do
-    {:ok, cert} = Unifex.CNode.call(cnode, :generate_cert)
+  def handle_call(:generate_cert, _from, %State{impl: impl} = state) do
+    {{:ok, cert}, state} = call(impl, :generate_cert, [], state)
     {:reply, {:ok, cert}, state}
   end
 
   @impl true
-  def handle_call(:get_cert_fingerprint, _from, %State{cnode: cnode} = state) do
-    {:ok, digest} = Unifex.CNode.call(cnode, :get_cert_fingerprint)
+  def handle_call(:get_cert_fingerprint, _from, %State{impl: impl} = state) do
+    {{:ok, digest}, state} = call(impl, :get_cert_fingerprint, [], state)
     {:reply, {:ok, digest}, state}
   end
 
   @impl true
-  def handle_call(:get_pkey, _from, %State{cnode: cnode} = state),
-    do: {:reply, Unifex.CNode.call(cnode, :get_pkey), state}
+  def handle_call(:get_pkey, _from, %State{impl: impl} = state) do
+    {{:ok, pkey}, state} = call(impl, :get_pkey, [], state)
+    {:reply, {:ok, pkey}, state}
+  end
 
   @impl true
-  def handle_call(:get_cert, _from, %State{cnode: cnode} = state),
-    do: {:reply, Unifex.CNode.call(cnode, :get_cert), state}
+  def handle_call(:get_cert, _from, %State{impl: impl} = state) do
+    {{:ok, cert}, state} = call(impl, :get_cert, [], state)
+    {:reply, {:ok, cert}, state}
+  end
 
   @impl true
   def handle_info({:handle_timeout, _reply_pid, timeout}, %State{finished?: false})
@@ -278,11 +292,11 @@ defmodule ExDTLS do
   @impl true
   def handle_info(
         {:handle_timeout, reply_pid, timeout},
-        %State{cnode: cnode, finished?: false} = state
+        %State{impl: impl, finished?: false} = state
       )
       when timeout < @max_retransmit_timeout do
-    case Unifex.CNode.call(cnode, :handle_timeout) do
-      {:retransmit, packets} ->
+    case call(impl, :handle_timeout, [], state) do
+      {{:retransmit, packets}, _state} ->
         send(reply_pid, {:retransmit, self(), packets})
         Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
 
@@ -297,8 +311,32 @@ defmodule ExDTLS do
   def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
   @impl true
-  def terminate(_reason, %State{cnode: cnode}) do
+  def terminate(_reason, %State{native_state: nil, cnode: cnode}) do
     Unifex.CNode.stop(cnode)
+  end
+
+  def terminate(_reason, _state) do
+    :ok
+  end
+
+  defp call(NIF, func, args, state) when func in [:init, :init_from_key_cert] do
+    {ret, native_state} = apply(ExDTLS.Native, func, args)
+    {ret, %{state | native_state: native_state}}
+  end
+
+  defp call(NIF, func, args, state) do
+    {ret, native_state} = apply(ExDTLS.Native, func, [state.native_state | args])
+    {ret, %{state | native_state: native_state}}
+  end
+
+  defp call(CNode, func, args, %{cnode: nil} = state) do
+    {:ok, cnode} = Unifex.CNode.start_link(:native)
+    call(CNode, func, args, %{state | cnode: cnode})
+  end
+
+  defp call(CNode, func, args, state) do
+    ret = apply(Unifex.CNode, :call, [state.cnode, func, args])
+    {ret, state}
   end
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),

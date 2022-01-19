@@ -14,7 +14,7 @@ defmodule ExDTLS.BundlexProject do
         deps: [unifex: :unifex],
         pkg_configs: ["openssl"],
         libs: ["pthread"],
-        interface: :cnode,
+        interface: [:nif, :cnode],
         preprocessor: Unifex
       ]
     ]
