@@ -1,18 +1,19 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.10.0"
+  @version "1.0.0"
   @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
     [
       app: :ex_dtls,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.12",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      dialyzer: dialyzer(),
 
       # hex
       description: "Elixir wrapper over OpenSSL for performing DTLS handshake",
