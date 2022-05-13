@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "0.10.0"
   @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
@@ -74,6 +74,7 @@ defmodule ExDTLS.Mixfile do
     [
       main: "readme",
       extras: ["README.md", "LICENSE"],
+      formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [ExDTLS]
     ]

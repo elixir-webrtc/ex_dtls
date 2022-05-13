@@ -18,7 +18,7 @@ The package can be installed by adding `ex_dtls` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:ex_dtls, "~> 1.0.0"}
+    {:ex_dtls, "~> 0.10.0"}
   ]
 end
 ```
