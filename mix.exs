@@ -8,11 +8,12 @@ defmodule ExDTLS.Mixfile do
     [
       app: :ex_dtls,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.12",
       compilers: [:unifex, :bundlex] ++ Mix.compilers(),
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      dialyzer: dialyzer(),
 
       # hex
       description: "Elixir wrapper over OpenSSL for performing DTLS handshake",
@@ -44,6 +45,19 @@ defmodule ExDTLS.Mixfile do
     ]
   end
 
+  defp dialyzer() do
+    opts = [
+      flags: [:error_handling]
+    ]
+
+    if System.get_env("CI") == "true" do
+      # Store PLTs in cacheable directory for CI
+      [plt_local_path: "priv/plts", plt_core_path: "priv/plts"] ++ opts
+    else
+      opts
+    end
+  end
+
   defp package do
     [
       maintainers: ["Membrane Team"],
@@ -60,6 +74,7 @@ defmodule ExDTLS.Mixfile do
     [
       main: "readme",
       extras: ["README.md", "LICENSE"],
+      formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [ExDTLS]
     ]
