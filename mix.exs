@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.10.0"
+  @version "0.11.0"
   @github_url "https://github.com/membraneframework/ex_dtls"
 
   def project do
@@ -38,7 +38,7 @@ defmodule ExDTLS.Mixfile do
 
   defp deps do
     [
-      {:unifex, "~> 0.7.0"},
+      {:unifex, "~> 1.0"},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false}
