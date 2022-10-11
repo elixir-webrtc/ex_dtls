@@ -29,7 +29,7 @@ By default `C node` implementation is used however, user can change it by passin
 or in `config.exs` by:
 
 ```elixir
-config :ex_dtls, impl: :NIF
+config :ex_dtls, impl: NIF
 ```
 
 Init `ExDTLS` on both peers with:
