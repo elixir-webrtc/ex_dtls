@@ -1,7 +1,7 @@
 defmodule ExDTLSTest do
   use ExUnit.Case, async: true
 
-  for impl <- [NIF, CNode] do
+  for impl <- [:nif, :cnode] do
     @implementation impl
     describe "#{@implementation}" do
       test "start with custom cert" do
@@ -47,5 +47,10 @@ defmodule ExDTLSTest do
         assert :ok = ExDTLS.stop(pid)
       end
     end
+  end
+
+  test "Invalid impl" do
+    assert {:error, {%ArgumentError{}, _stacktrace}} =
+             ExDTLS.start(impl: :invalid, client_mode: false, dtls_srtp: false)
   end
 end

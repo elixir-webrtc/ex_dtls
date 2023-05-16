@@ -18,13 +18,13 @@ defmodule ExDTLS do
             cnode: Unifex.CNode.t(),
             client_mode: boolean(),
             finished?: boolean(),
-            impl: NIF | CNode,
+            impl: :nif | :cnode,
             native_state: reference()
           }
     defstruct cnode: nil,
               client_mode: false,
               finished?: false,
-              impl: CNode,
+              impl: :cnode,
               native_state: nil
   end
 
@@ -45,7 +45,7 @@ defmodule ExDTLS do
           dtls_srtp: boolean(),
           pkey: binary(),
           cert: binary(),
-          impl: NIF | CNode
+          impl: :nif | :cnode
         ]
 
   @typedoc """
@@ -174,7 +174,12 @@ defmodule ExDTLS do
   # Server APi
   @impl true
   def init(opts) do
-    impl = Application.get_env(:ex_dtls, :impl) || opts[:impl] || CNode
+    impl = opts[:impl] || Application.get_env(:ex_dtls, :impl, :cnode)
+
+    if impl != :nif and impl != :cnode do
+      raise ArgumentError, "Invalid :impl for ExDTLS: #{inspect(impl)}"
+    end
+
     state = %State{client_mode: opts[:client_mode], impl: impl}
 
     {:ok, state} =
@@ -320,22 +325,22 @@ defmodule ExDTLS do
     :ok
   end
 
-  defp call(NIF, func, args, state) when func in [:init, :init_from_key_cert] do
+  defp call(:nif, func, args, state) when func in [:init, :init_from_key_cert] do
     {ret, native_state} = apply(ExDTLS.Native, func, args)
     {ret, %{state | native_state: native_state}}
   end
 
-  defp call(NIF, func, args, state) do
+  defp call(:nif, func, args, state) do
     {ret, native_state} = apply(ExDTLS.Native, func, [state.native_state | args])
     {ret, %{state | native_state: native_state}}
   end
 
-  defp call(CNode, func, args, %{cnode: nil} = state) do
+  defp call(:cnode, func, args, %{cnode: nil} = state) do
     {:ok, cnode} = Unifex.CNode.start_link(:native)
-    call(CNode, func, args, %{state | cnode: cnode})
+    call(:cnode, func, args, %{state | cnode: cnode})
   end
 
-  defp call(CNode, func, args, state) do
+  defp call(:cnode, func, args, state) do
     ret = apply(Unifex.CNode, :call, [state.cnode, func, args])
     {ret, state}
   end
