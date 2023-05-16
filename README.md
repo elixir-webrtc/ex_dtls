@@ -24,8 +24,9 @@ end
 ```
 
 ## Usage
-`ExDTLS` can work both as a `C node` or as a `NIF`.
-By default `C node` implementation is used however, user can change it by passing proper option while starting `ExDTLS` 
+
+`ExDTLS` can work both as a C node or as a NIF.
+By default, C node implementation is used, however, user can change it by passing proper option while starting `ExDTLS`
 or in `config.exs` by:
 
 ```elixir
@@ -33,28 +34,32 @@ config :ex_dtls, impl: :nif
 ```
 
 Init `ExDTLS` on both peers with:
+
 ```elixir
 {:ok, dtls} = ExDTLS.start_link(client_mode, dtls_srtp)
 ```
 
 On a peer running in a client mode start performing DTLS handshake
+
 ```elixir
 {:ok, packets} = ExDTLS.do_handshake(dtls)
 ```
+
 This will generate initial handshake packets. Now we have to pass them on the second peer.
 You can use for that e.g. a TCP socket, but we will not cover this here.
 
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
+
 ```elixir
 {:ok, packets} = ExDTLS.process(dtls, packets)
 ```
+
 As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
 Peer that finishes handshake first will return `{:finished, handshake_data, packets}`
 message. These packets have to be sent to the second peer, so it can finish its handshake too and
 return `{:finished, handshake_data}` message.
-
 
 For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`
 or to our integration tests.

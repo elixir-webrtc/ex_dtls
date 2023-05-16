@@ -1,10 +1,23 @@
 defmodule ExDTLS do
   @moduledoc """
-  Module that allows performing DTLS handshake including DTLS-SRTP one.
+  Module that allows performing DTLS handshake including a DTLS-SRTP one.
 
-  `ExDTLS` spawns CNode that uses OpenSSL functions to perform DTLS handshake.
-  It doesn't create or require any socket. Instead it returns generated DTLS packets which then have
+  `ExDTLS` executes native OpenSSL functions to perform DTLS handshake.
+  It doesn't create or require any socket. Instead, it returns generated DTLS packets which then have
   to be transported to the peer.
+
+  The native code can be executed via two different mechanisms:
+    - [**NIFs** (Native Implemented Functions)](https://www.erlang.org/doc/tutorial/nif.html)
+    - [**C nodes** or **hidden nodes**](https://www.erlang.org/doc/tutorial/overview.html#c-nodes)
+
+  In short, NIFs are a bit faster and might be easier to debug, but any crash of the native code
+  might take down the whole ErlangVM running it, thus C nodes are the default option.
+
+  The used mechanism is determined by `:impl` option provided on start (See `t:opts_t/0`) or by
+  `:ex_dtls` application config:
+  ```
+  config :ex_dtls, impl: :nif
+  ```
   """
 
   use GenServer
@@ -31,14 +44,7 @@ defmodule ExDTLS do
   @typedoc """
   Type describing ExDTLS configuration.
 
-  It's a keyword list containing the following keys:
-  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
-  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
-  * `pkey` - private key to use in this SSL context. Must correspond to `cert`
-  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
-  * `impl` - `NIF` if ExDTLS should run as a NIF or `CNode` in other case. By default CNode implementation is used
-
-  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+  See `start_link/1` for the meaning of each option
   """
   @type opts_t :: [
           client_mode: boolean(),
@@ -67,6 +73,16 @@ defmodule ExDTLS do
 
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
+
+  Accepts a keyword list with the following options (`t:opts_t/0`):
+  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
+  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
+  * `pkey` - private key to use in this SSL context. Must correspond to `cert`
+  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
+  * `impl` - `:nif` if ExDTLS should execute native code as NIFs or `:cnode` to use a C node.
+    By default C node implementation is used.
+
+  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
   """
   @spec start_link(opts :: opts_t) :: {:ok, pid}
   def start_link(opts) do
