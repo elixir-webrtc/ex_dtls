@@ -36,7 +36,9 @@ config :ex_dtls, impl: :nif
 Init `ExDTLS` on both peers with:
 
 ```elixir
-{:ok, dtls} = ExDTLS.start_link(client_mode, dtls_srtp)
+# One peer should be a client and use client_mode: true, the other - false
+# DTLS-SRTP is the most common use case for ExDTLS, we'll enable it
+{:ok, dtls} = ExDTLS.start_link(client_mode: true, dtls_srtp: true)
 ```
 
 On a peer running in a client mode start performing DTLS handshake
@@ -46,7 +48,7 @@ On a peer running in a client mode start performing DTLS handshake
 ```
 
 This will generate initial handshake packets. Now we have to pass them on the second peer.
-You can use for that e.g. a TCP socket, but we will not cover this here.
+You can use for that e.g. a UDP socket, but we will not cover this here.
 
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
 
