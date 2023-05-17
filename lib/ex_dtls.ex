@@ -196,20 +196,23 @@ defmodule ExDTLS do
       raise ArgumentError, "Invalid :impl for ExDTLS: #{inspect(impl)}"
     end
 
-    state = %State{client_mode: opts[:client_mode], impl: impl}
+    srtp? = Access.get(opts, :dtls_srtp, false)
+    client? = Access.fetch!(opts, :client_mode)
+
+    state = %State{client_mode: client?, impl: impl}
 
     {:ok, state} =
       cond do
         opts[:pkey] == nil and opts[:cert] == nil ->
-          call(impl, :init, [opts[:client_mode], opts[:dtls_srtp]], state)
+          call(impl, :init, [client?, srtp?], state)
 
         opts[:pkey] != nil and opts[:cert] != nil ->
           call(
             impl,
             :init_from_key_cert,
             [
-              opts[:client_mode],
-              opts[:dtls_srtp],
+              client?,
+              srtp?,
               opts[:pkey],
               opts[:cert]
             ],
@@ -217,10 +220,10 @@ defmodule ExDTLS do
           )
 
         true ->
-          raise("""
+          raise ArgumentError, """
           Private key or certificate is nil. If you want private key and certificate
           to be generated don't pass any of them."
-          """)
+          """
       end
 
     {:ok, state}
