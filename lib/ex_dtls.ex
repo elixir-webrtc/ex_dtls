@@ -333,7 +333,15 @@ defmodule ExDTLS do
   def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
   @impl true
-  def terminate(_reason, %State{native_state: nil, cnode: cnode}) do
+  def handle_info(
+        {:DOWN, _ref, :process, cnode, reason},
+        %State{cnode: %Unifex.CNode{server: cnode}} = state
+      ) do
+    {:stop, {:cnode_down, reason}, %{state | cnode: nil}}
+  end
+
+  @impl true
+  def terminate(_reason, %State{native_state: nil, cnode: cnode}) when cnode != nil do
     Unifex.CNode.stop(cnode)
   end
 
@@ -353,6 +361,7 @@ defmodule ExDTLS do
 
   defp call(:cnode, func, args, %{cnode: nil} = state) do
     {:ok, cnode} = Unifex.CNode.start_link(:native)
+    _ref = Unifex.CNode.monitor(cnode)
     call(:cnode, func, args, %{state | cnode: cnode})
   end
 
