@@ -13,8 +13,7 @@ defmodule ExDTLS do
   In short, NIFs are a bit faster and might be easier to debug, but any crash of the native code
   might take down the whole ErlangVM running it, thus C nodes are the default option.
 
-  The used mechanism is determined by `:impl` option provided on start (See `t:opts_t/0`) or by
-  `:ex_dtls` application config:
+  The used mechanism may be changed by setting `:impl` to `:nif` or `:cnode` in `:ex_dtls` application config:
   ```
   config :ex_dtls, impl: :nif
   ```
@@ -50,8 +49,7 @@ defmodule ExDTLS do
           client_mode: boolean(),
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary(),
-          impl: :nif | :cnode
+          cert: binary()
         ]
 
   @typedoc """
@@ -79,8 +77,6 @@ defmodule ExDTLS do
   * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
   * `pkey` - private key to use in this SSL context. Must correspond to `cert`
   * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
-  * `impl` - `:nif` if ExDTLS should execute native code as NIFs or `:cnode` to use a C node.
-    By default C node implementation is used.
 
   If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
   """
@@ -141,10 +137,9 @@ defmodule ExDTLS do
   Generates initial DTLS packets that have to be passed to the second host.
   Has to be called by a host working in the client mode.
   """
-  @spec do_handshake(pid :: pid(), packets :: binary()) :: :ok | {:ok, packets :: binary()}
-
-  def do_handshake(pid, packets \\ <<>>) do
-    GenServer.call(pid, {:do_handshake, packets})
+  @spec do_handshake(pid :: pid()) :: :ok | {:ok, packets :: binary()}
+  def do_handshake(pid) do
+    GenServer.call(pid, :do_handshake)
   end
 
   @doc """
@@ -190,14 +185,14 @@ defmodule ExDTLS do
   # Server APi
   @impl true
   def init(opts) do
-    impl = opts[:impl] || Application.get_env(:ex_dtls, :impl, :cnode)
+    impl = Application.get_env(:ex_dtls, :impl, :cnode)
 
     if impl != :nif and impl != :cnode do
       raise ArgumentError, "Invalid :impl for ExDTLS: #{inspect(impl)}"
     end
 
-    srtp? = Access.get(opts, :dtls_srtp, false)
-    client? = Access.fetch!(opts, :client_mode)
+    srtp? = Keyword.get(opts, :dtls_srtp, false)
+    client? = Keyword.fetch!(opts, :client_mode)
 
     state = %State{client_mode: client?, impl: impl}
 
@@ -230,8 +225,8 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{impl: impl} = state) do
-    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [packets], state)
+  def handle_call(:do_handshake, {parent, _alias}, %State{impl: impl} = state) do
+    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [], state)
     Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end

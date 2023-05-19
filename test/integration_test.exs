@@ -1,7 +1,21 @@
 defmodule ExDTLS.IntegrationTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
-  test "dtls-srtp" do
+  setup ctx do
+    Application.put_env(:ex_dtls, :impl, ctx[:impl])
+  end
+
+  @tag impl: :nif
+  test "NIF dtls_srtp" do
+    run_test()
+  end
+
+  @tag impl: :cnode
+  test "CNode dtls_srtp" do
+    run_test()
+  end
+
+  defp run_test() do
     {:ok, rx_pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: true)
     {:ok, tx_pid} = ExDTLS.start_link(client_mode: true, dtls_srtp: true)
     {:ok, packets} = ExDTLS.do_handshake(tx_pid)
