@@ -1,12 +1,22 @@
 defmodule ExDTLSTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
-  for impl <- [NIF, CNode] do
+  @app :ex_dtls
+  setup_all do
+    backup = Application.get_env(@app, :impl)
+
+    on_exit(fn -> Application.put_env(@app, :impl, backup) end)
+  end
+
+  for impl <- [:nif, :cnode] do
     @implementation impl
     describe "#{@implementation}" do
+      setup do
+        Application.put_env(@app, :impl, @implementation)
+      end
+
       test "start with custom cert" do
-        {:ok, pid} =
-          ExDTLS.start_link(impl: @implementation, client_mode: false, dtls_srtp: false)
+        {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
 
         {:ok, pkey} = ExDTLS.get_pkey(pid)
         {:ok, cert} = ExDTLS.get_cert(pid)
@@ -47,5 +57,12 @@ defmodule ExDTLSTest do
         assert :ok = ExDTLS.stop(pid)
       end
     end
+  end
+
+  test "Invalid impl" do
+    Application.put_env(@app, :impl, :invalid)
+
+    assert {:error, {%ArgumentError{}, _stacktrace}} =
+             ExDTLS.start(client_mode: false, dtls_srtp: false)
   end
 end

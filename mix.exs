@@ -39,9 +39,9 @@ defmodule ExDTLS.Mixfile do
   defp deps do
     [
       {:unifex, "~> 1.0"},
-      {:ex_doc, "~> 0.22", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.0.0", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.0", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: :dev, runtime: false}
     ]
   end
 

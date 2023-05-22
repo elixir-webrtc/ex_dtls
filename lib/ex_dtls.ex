@@ -1,10 +1,22 @@
 defmodule ExDTLS do
   @moduledoc """
-  Module that allows performing DTLS handshake including DTLS-SRTP one.
+  Module that allows performing DTLS handshake including a DTLS-SRTP one.
 
-  `ExDTLS` spawns CNode that uses OpenSSL functions to perform DTLS handshake.
-  It doesn't create or require any socket. Instead it returns generated DTLS packets which then have
+  `ExDTLS` executes native OpenSSL functions to perform DTLS handshake.
+  It doesn't create or require any socket. Instead, it returns generated DTLS packets which then have
   to be transported to the peer.
+
+  The native code can be executed via two different mechanisms:
+    - [**NIFs** (Native Implemented Functions)](https://www.erlang.org/doc/tutorial/nif.html)
+    - [**C nodes** or **hidden nodes**](https://www.erlang.org/doc/tutorial/overview.html#c-nodes)
+
+  In short, NIFs are a bit faster and might be easier to debug, but any crash of the native code
+  might take down the whole ErlangVM running it, thus C nodes are the default option.
+
+  The used mechanism may be changed by setting `:impl` to `:nif` or `:cnode` in `:ex_dtls` application config:
+  ```
+  config :ex_dtls, impl: :nif
+  ```
   """
 
   use GenServer
@@ -18,34 +30,26 @@ defmodule ExDTLS do
             cnode: Unifex.CNode.t(),
             client_mode: boolean(),
             finished?: boolean(),
-            impl: NIF | CNode,
+            impl: :nif | :cnode,
             native_state: reference()
           }
     defstruct cnode: nil,
               client_mode: false,
               finished?: false,
-              impl: CNode,
+              impl: :cnode,
               native_state: nil
   end
 
   @typedoc """
   Type describing ExDTLS configuration.
 
-  It's a keyword list containing the following keys:
-  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
-  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
-  * `pkey` - private key to use in this SSL context. Must correspond to `cert`
-  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
-  * `impl` - `NIF` if ExDTLS should run as a NIF or `CNode` in other case. By default CNode implementation is used
-
-  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+  See `start_link/1` for the meaning of each option
   """
   @type opts_t :: [
           client_mode: boolean(),
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary(),
-          impl: NIF | CNode
+          cert: binary()
         ]
 
   @typedoc """
@@ -67,6 +71,14 @@ defmodule ExDTLS do
 
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
+
+  Accepts a keyword list with the following options (`t:opts_t/0`):
+  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
+  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
+  * `pkey` - private key to use in this SSL context. Must correspond to `cert`
+  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
+
+  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
   """
   @spec start_link(opts :: opts_t) :: {:ok, pid}
   def start_link(opts) do
@@ -125,10 +137,9 @@ defmodule ExDTLS do
   Generates initial DTLS packets that have to be passed to the second host.
   Has to be called by a host working in the client mode.
   """
-  @spec do_handshake(pid :: pid(), packets :: binary()) :: :ok | {:ok, packets :: binary()}
-
-  def do_handshake(pid, packets \\ <<>>) do
-    GenServer.call(pid, {:do_handshake, packets})
+  @spec do_handshake(pid :: pid()) :: :ok | {:ok, packets :: binary()}
+  def do_handshake(pid) do
+    GenServer.call(pid, :do_handshake)
   end
 
   @doc """
@@ -174,21 +185,29 @@ defmodule ExDTLS do
   # Server APi
   @impl true
   def init(opts) do
-    impl = Application.get_env(:ex_dtls, :impl) || opts[:impl] || CNode
-    state = %State{client_mode: opts[:client_mode], impl: impl}
+    impl = Application.get_env(:ex_dtls, :impl, :cnode)
+
+    if impl != :nif and impl != :cnode do
+      raise ArgumentError, "Invalid :impl for ExDTLS: #{inspect(impl)}"
+    end
+
+    srtp? = Keyword.get(opts, :dtls_srtp, false)
+    client? = Keyword.fetch!(opts, :client_mode)
+
+    state = %State{client_mode: client?, impl: impl}
 
     {:ok, state} =
       cond do
         opts[:pkey] == nil and opts[:cert] == nil ->
-          call(impl, :init, [opts[:client_mode], opts[:dtls_srtp]], state)
+          call(impl, :init, [client?, srtp?], state)
 
         opts[:pkey] != nil and opts[:cert] != nil ->
           call(
             impl,
             :init_from_key_cert,
             [
-              opts[:client_mode],
-              opts[:dtls_srtp],
+              client?,
+              srtp?,
               opts[:pkey],
               opts[:cert]
             ],
@@ -196,18 +215,18 @@ defmodule ExDTLS do
           )
 
         true ->
-          raise("""
+          raise ArgumentError, """
           Private key or certificate is nil. If you want private key and certificate
           to be generated don't pass any of them."
-          """)
+          """
       end
 
     {:ok, state}
   end
 
   @impl true
-  def handle_call({:do_handshake, packets}, {parent, _alias}, %State{impl: impl} = state) do
-    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [packets], state)
+  def handle_call(:do_handshake, {parent, _alias}, %State{impl: impl} = state) do
+    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [], state)
     Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end
@@ -312,7 +331,15 @@ defmodule ExDTLS do
   def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
   @impl true
-  def terminate(_reason, %State{native_state: nil, cnode: cnode}) do
+  def handle_info(
+        {:DOWN, _ref, :process, cnode, reason},
+        %State{cnode: %Unifex.CNode{server: cnode}} = state
+      ) do
+    {:stop, {:cnode_down, reason}, %{state | cnode: nil}}
+  end
+
+  @impl true
+  def terminate(_reason, %State{native_state: nil, cnode: cnode}) when cnode != nil do
     Unifex.CNode.stop(cnode)
   end
 
@@ -320,22 +347,23 @@ defmodule ExDTLS do
     :ok
   end
 
-  defp call(NIF, func, args, state) when func in [:init, :init_from_key_cert] do
+  defp call(:nif, func, args, state) when func in [:init, :init_from_key_cert] do
     {ret, native_state} = apply(ExDTLS.Native, func, args)
     {ret, %{state | native_state: native_state}}
   end
 
-  defp call(NIF, func, args, state) do
+  defp call(:nif, func, args, state) do
     {ret, native_state} = apply(ExDTLS.Native, func, [state.native_state | args])
     {ret, %{state | native_state: native_state}}
   end
 
-  defp call(CNode, func, args, %{cnode: nil} = state) do
+  defp call(:cnode, func, args, %{cnode: nil} = state) do
     {:ok, cnode} = Unifex.CNode.start_link(:native)
-    call(CNode, func, args, %{state | cnode: cnode})
+    _ref = Unifex.CNode.monitor(cnode)
+    call(:cnode, func, args, %{state | cnode: cnode})
   end
 
-  defp call(CNode, func, args, state) do
+  defp call(:cnode, func, args, state) do
     ret = apply(Unifex.CNode, :call, [state.cnode, func, args])
     {ret, state}
   end
