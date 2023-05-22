@@ -22,7 +22,7 @@ defmodule ExDTLS.Mixfile do
       # docs
       name: "ExDTLS",
       source_url: @github_url,
-      homepage_url: "https://membraneframework.org",
+      homepage_url: "https://membrane.stream",
       docs: docs()
     ]
   end
@@ -61,12 +61,13 @@ defmodule ExDTLS.Mixfile do
   defp package do
     [
       maintainers: ["Membrane Team"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membraneframework.org"
+        "Membrane Framework Homepage" => "https://membrane.stream"
       },
-      files: ["lib", "mix.exs", "README*", "LICENSE*", ".formatter.exs", "bundlex.exs", "c_src"]
+      files: ["lib", "mix.exs", "README*", "LICENSE*", ".formatter.exs", "bundlex.exs", "c_src"],
+      exclude_patterns: [~r"c_src/.*/_generated.*"]
     ]
   end
 
