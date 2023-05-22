@@ -1,17 +1,20 @@
 defmodule ExDTLS.IntegrationTest do
   use ExUnit.Case, async: false
 
-  setup ctx do
-    Application.put_env(:ex_dtls, :impl, ctx[:impl])
+  @app :ex_dtls
+  setup_all do
+    backup = Application.get_env(@app, :impl)
+
+    on_exit(fn -> Application.put_env(@app, :impl, backup) end)
   end
 
-  @tag impl: :nif
   test "NIF dtls_srtp" do
+    Application.put_env(@app, :impl, :nif)
     run_test()
   end
 
-  @tag impl: :cnode
   test "CNode dtls_srtp" do
+    Application.put_env(@app, :impl, :cnode)
     run_test()
   end
 
