@@ -114,36 +114,11 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
 }
 
 EVP_PKEY *gen_key() {
-  EVP_PKEY *pkey = EVP_PKEY_new();
+  // Based on https://www.openssl.org/docs/man3.0/man7/EVP_PKEY-RSA.html
+  // TODO: possible optimization by storing and reusing keygen context
+  EVP_PKEY *pkey = EVP_RSA_gen(2048);
   if (pkey == NULL) {
     DEBUG("Cannot create EVP_PKEY");
-    return NULL;
-  }
-
-  RSA *rsa = RSA_new();
-  if (rsa == NULL) {
-    DEBUG("Cannot create RSA");
-    return NULL;
-  }
-
-  BIGNUM *exp = BN_new();
-  if (exp == NULL) {
-    DEBUG("Cannot allocate BIGNUM");
-    return NULL;
-  }
-
-  if (BN_set_word(exp, 65537L) == 0) {
-    DEBUG("Cannot set exp");
-    return NULL;
-  }
-
-  if (RSA_generate_key_ex(rsa, 2048, exp, NULL) == 0) {
-    DEBUG("RSA_generate_key_ex error");
-    return NULL;
-  }
-
-  if (EVP_PKEY_assign_RSA(pkey, rsa) == 0) {
-    DEBUG("Cannot assign RSA key");
     return NULL;
   }
 
