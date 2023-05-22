@@ -1,10 +1,10 @@
 #pragma once
 
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
-#include <openssl/evp.h>
 #include <string.h>
 
 #include "log.h"
