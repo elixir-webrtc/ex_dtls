@@ -114,14 +114,32 @@ KeyingMaterial *export_keying_material(SSL *ssl) {
 }
 
 EVP_PKEY *gen_key() {
-  // Based on https://www.openssl.org/docs/man3.0/man7/EVP_PKEY-RSA.html
+  // Based on https://www.openssl.org/docs/man1.1.1/man3/EVP_PKEY_keygen.html
+  // and https://www.openssl.org/docs/man3.0/man7/EVP_PKEY-RSA.html
+  EVP_PKEY *pkey = NULL;
   // TODO: possible optimization by storing and reusing keygen context
-  EVP_PKEY *pkey = EVP_RSA_gen(2048);
-  if (pkey == NULL) {
-    DEBUG("Cannot create EVP_PKEY");
-    return NULL;
+  EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+  if (!pctx) {
+    DEBUG("Cannot create EVP_PKEY_CTX");
+    goto gen_key_exit;
   }
 
+  if (EVP_PKEY_keygen_init(pctx) <= 0) {
+    DEBUG("Cannot initialize keygen");
+    goto gen_key_exit;
+  }
+  if (EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, 2048) <= 0) {
+    DEBUG("Cannot set bits");
+    goto gen_key_exit;
+  }
+  if (EVP_PKEY_keygen(pctx, &pkey) <= 0 || !pkey) {
+    DEBUG("Cannot create EVP_PKEY");
+    goto gen_key_exit;
+  }
+gen_key_exit:
+  if (pctx != NULL) {
+    EVP_PKEY_CTX_free(pctx);
+  }
   return pkey;
 }
 
