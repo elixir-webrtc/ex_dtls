@@ -378,4 +378,8 @@ void handle_destroy_state(UnifexEnv *env, State *state) {
   if (state->x509) {
     X509_free(state->x509);
   }
+
+  if (state->pkey) {
+    EVP_PKEY_free(state->pkey);
+  }
 }
