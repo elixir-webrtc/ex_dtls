@@ -22,7 +22,7 @@ defmodule ExDTLS.RetransmissionTest do
       1000 ->
         wait_for_retransmission(pid, false)
 
-      {:retransmit, ^pid, packets} ->
+      {:ex_dtls, ^pid, {:retransmit, packets}} ->
         packets
 
       _other ->

@@ -69,6 +69,15 @@ defmodule ExDTLS do
           {local_keying_material :: binary(), remote_keying_material :: binary(),
            protection_profile :: protection_profile_t()}
 
+  @typedoc """
+  Messsage sent when some packets should be retransmitted.
+
+  When ExDTLS generates handshake packets and don't receive
+  a response fast enough, it will ask for sending those
+  packets once again.
+  """
+  @type retransmit_msg_t :: {:ex_dtls, pid(), {:retransmit, binary()}}
+
   @doc """
   Starts ExDTLS GenServer process linked to the current process.
 
@@ -136,6 +145,9 @@ defmodule ExDTLS do
 
   Generates initial DTLS packets that have to be passed to the second host.
   Has to be called by a host working in the client mode.
+
+  Calling this function may trigger retransmission request.
+  See `t:retransmit_msg_t/0`.
   """
   @spec do_handshake(pid :: pid()) :: :ok | {:ok, packets :: binary()}
   def do_handshake(pid) do
@@ -149,8 +161,11 @@ defmodule ExDTLS do
   or `{:error, value}` if error occurred.
 
   `{:handshake_packets, binary()}` contains handshake data that has to be sent to the peer.
-  `:handshake_want_read` means some additional data is needed for continuing handshake. It can be returned
-  when retransmitted packet was passed but timer didn't expired yet.
+  `:handshake_want_read` means some additional data is needed for continuing handshake. 
+  It can be returned when retransmitted packet was passed but timer didn't expired yet.
+
+  Calling this function may trigger retransmission request.
+  See `t:retransmit_msg_t/0`.
   """
   @spec process(pid :: pid(), packets :: binary()) ::
           {:ok, packets :: binary()}
@@ -317,7 +332,7 @@ defmodule ExDTLS do
       when timeout < @max_retransmit_timeout do
     case call(impl, :handle_timeout, [], state) do
       {{:retransmit, packets}, _state} ->
-        send(reply_pid, {:retransmit, self(), packets})
+        send(reply_pid, {:ex_dtls, self(), {:retransmit, packets}})
         Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
 
       _other ->
