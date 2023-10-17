@@ -63,6 +63,9 @@ Peer that finishes handshake first will return `{:finished, handshake_data, pack
 message. These packets have to be sent to the second peer, so it can finish its handshake too and
 return `{:finished, handshake_data}` message.
 
+`ExDTLS` may also ask for retransmitting some packets if it thinks they were lost.
+See `t:ExDTLS.retransmit_msg_t/0`.
+
 For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`
 or to our integration tests.
 
