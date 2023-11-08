@@ -5,39 +5,21 @@ defmodule ExDTLS do
   `ExDTLS` executes native OpenSSL functions to perform DTLS handshake.
   It doesn't create or require any socket. Instead, it returns generated DTLS packets which then have
   to be transported to the peer.
-
-  The native code can be executed via two different mechanisms:
-    - [**NIFs** (Native Implemented Functions)](https://www.erlang.org/doc/tutorial/nif.html)
-    - [**C nodes** or **hidden nodes**](https://www.erlang.org/doc/tutorial/overview.html#c-nodes)
-
-  In short, NIFs are a bit faster and might be easier to debug, but any crash of the native code
-  might take down the whole ErlangVM running it, thus C nodes are the default option.
-
-  The used mechanism may be changed by setting `:impl` to `:nif` or `:cnode` in `:ex_dtls` application config:
-  ```
-  config :ex_dtls, impl: :nif
-  ```
   """
 
   use GenServer
-
-  require Unifex.CNode
 
   defmodule State do
     @moduledoc false
 
     @type t :: %__MODULE__{
-            cnode: Unifex.CNode.t(),
             client_mode: boolean(),
             finished?: boolean(),
-            impl: :nif | :cnode,
-            native_state: reference()
+            native: reference()
           }
-    defstruct cnode: nil,
-              client_mode: false,
+    defstruct client_mode: false,
               finished?: false,
-              impl: :cnode,
-              native_state: nil
+              native: nil
   end
 
   @typedoc """
@@ -200,25 +182,18 @@ defmodule ExDTLS do
   # Server APi
   @impl true
   def init(opts) do
-    impl = Application.get_env(:ex_dtls, :impl, :cnode)
-
-    if impl != :nif and impl != :cnode do
-      raise ArgumentError, "Invalid :impl for ExDTLS: #{inspect(impl)}"
-    end
-
     srtp? = Keyword.get(opts, :dtls_srtp, false)
     client? = Keyword.fetch!(opts, :client_mode)
 
-    state = %State{client_mode: client?, impl: impl}
+    state = %State{client_mode: client?}
 
     {:ok, state} =
       cond do
         opts[:pkey] == nil and opts[:cert] == nil ->
-          call(impl, :init, [client?, srtp?], state)
+          call(:init, [client?, srtp?], state)
 
         opts[:pkey] != nil and opts[:cert] != nil ->
           call(
-            impl,
             :init_from_key_cert,
             [
               client?,
@@ -240,15 +215,15 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call(:do_handshake, {parent, _alias}, %State{impl: impl} = state) do
-    {{:ok, _packets} = msg, state} = call(impl, :do_handshake, [], state)
+  def handle_call(:do_handshake, {parent, _alias}, state) do
+    {{:ok, _packets} = msg, state} = call(:do_handshake, [], state)
     Process.send_after(self(), {:handle_timeout, parent, 2}, 1000)
     {:reply, msg, state}
   end
 
   @impl true
-  def handle_call({:process, packets}, {parent, _alias}, %State{impl: impl} = state) do
-    {msg, state} = call(impl, :process, [packets], state)
+  def handle_call({:process, packets}, {parent, _alias}, state) do
+    {msg, state} = call(:process, [packets], state)
 
     {message, state} =
       case msg do
@@ -296,26 +271,26 @@ defmodule ExDTLS do
   end
 
   @impl true
-  def handle_call(:generate_cert, _from, %State{impl: impl} = state) do
-    {{:ok, cert}, state} = call(impl, :generate_cert, [], state)
+  def handle_call(:generate_cert, _from, state) do
+    {{:ok, cert}, state} = call(:generate_cert, [], state)
     {:reply, {:ok, cert}, state}
   end
 
   @impl true
-  def handle_call(:get_cert_fingerprint, _from, %State{impl: impl} = state) do
-    {{:ok, digest}, state} = call(impl, :get_cert_fingerprint, [], state)
+  def handle_call(:get_cert_fingerprint, _from, state) do
+    {{:ok, digest}, state} = call(:get_cert_fingerprint, [], state)
     {:reply, {:ok, digest}, state}
   end
 
   @impl true
-  def handle_call(:get_pkey, _from, %State{impl: impl} = state) do
-    {{:ok, pkey}, state} = call(impl, :get_pkey, [], state)
+  def handle_call(:get_pkey, _from, state) do
+    {{:ok, pkey}, state} = call(:get_pkey, [], state)
     {:reply, {:ok, pkey}, state}
   end
 
   @impl true
-  def handle_call(:get_cert, _from, %State{impl: impl} = state) do
-    {{:ok, cert}, state} = call(impl, :get_cert, [], state)
+  def handle_call(:get_cert, _from, state) do
+    {{:ok, cert}, state} = call(:get_cert, [], state)
     {:reply, {:ok, cert}, state}
   end
 
@@ -325,12 +300,9 @@ defmodule ExDTLS do
       do: raise("DTLS handshake reached max retransmission number")
 
   @impl true
-  def handle_info(
-        {:handle_timeout, reply_pid, timeout},
-        %State{impl: impl, finished?: false} = state
-      )
+  def handle_info({:handle_timeout, reply_pid, timeout}, %State{finished?: false} = state)
       when timeout < @max_retransmit_timeout do
-    case call(impl, :handle_timeout, [], state) do
+    case call(:handle_timeout, [], state) do
       {{:retransmit, packets}, _state} ->
         send(reply_pid, {:ex_dtls, self(), {:retransmit, packets}})
         Process.send_after(self(), {:handle_timeout, reply_pid, timeout * 2}, timeout * 1000)
@@ -345,42 +317,14 @@ defmodule ExDTLS do
   @impl true
   def handle_info({:handle_timeout, _reply_pid, _timeout}, state), do: {:noreply, state}
 
-  @impl true
-  def handle_info(
-        {:DOWN, _ref, :process, cnode, reason},
-        %State{cnode: %Unifex.CNode{server: cnode}} = state
-      ) do
-    {:stop, {:cnode_down, reason}, %{state | cnode: nil}}
+  defp call(func, args, state) when func in [:init, :init_from_key_cert] do
+    {ret, native} = apply(ExDTLS.Native, func, args)
+    {ret, %{state | native: native}}
   end
 
-  @impl true
-  def terminate(_reason, %State{native_state: nil, cnode: cnode}) when cnode != nil do
-    Unifex.CNode.stop(cnode)
-  end
-
-  def terminate(_reason, _state) do
-    :ok
-  end
-
-  defp call(:nif, func, args, state) when func in [:init, :init_from_key_cert] do
-    {ret, native_state} = apply(ExDTLS.Native, func, args)
-    {ret, %{state | native_state: native_state}}
-  end
-
-  defp call(:nif, func, args, state) do
-    {ret, native_state} = apply(ExDTLS.Native, func, [state.native_state | args])
-    {ret, %{state | native_state: native_state}}
-  end
-
-  defp call(:cnode, func, args, %{cnode: nil} = state) do
-    {:ok, cnode} = Unifex.CNode.start_link(:native)
-    _ref = Unifex.CNode.monitor(cnode)
-    call(:cnode, func, args, %{state | cnode: cnode})
-  end
-
-  defp call(:cnode, func, args, state) do
-    ret = apply(Unifex.CNode, :call, [state.cnode, func, args])
-    {ret, state}
+  defp call(func, args, state) do
+    {ret, native} = apply(ExDTLS.Native, func, [state.native | args])
+    {ret, %{state | native: native}}
   end
 
   defp get_local_and_remote_km(client_keying_material, server_keying_material, true),

@@ -25,13 +25,8 @@ end
 
 ## Usage
 
-`ExDTLS` can work both as a C node or as a NIF.
-By default, C node implementation is used, however, user can change it by passing proper option while starting `ExDTLS`
-or in `config.exs` by:
-
-```elixir
-config :ex_dtls, impl: :nif
-```
+`ExDTLS` uses OpenSSL under the hood.
+Make sure you have it installed on your OS.
 
 Init `ExDTLS` on both peers with:
 
