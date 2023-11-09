@@ -1,69 +1,43 @@
 defmodule ExDTLS.RetransmissionTest do
   use ExUnit.Case, async: true
 
-  test "check retransmission" do
-    {:ok, rx_pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: true)
-    {:ok, tx_pid} = ExDTLS.start_link(client_mode: true, dtls_srtp: true)
+  test "retransmission" do
+    rx_dtls = ExDTLS.init(client_mode: false, dtls_srtp: true)
+    tx_dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
 
-    ExDTLS.do_handshake(tx_pid)
-    packets = wait_for_retransmission(tx_pid)
+    {_packets, timeout, tx_dtls} = ExDTLS.do_handshake(tx_dtls)
+    Process.send_after(self(), {:handle_timeout, :tx}, timeout)
+    {:retransmit, packets, timeout, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
+    Process.send_after(self(), {:handle_timeout, :tx}, timeout)
 
-    ExDTLS.process(rx_pid, packets)
-    packets = wait_for_retransmission(rx_pid)
+    {:handshake_packets, _packets, timeout, rx_dtls} = ExDTLS.process(rx_dtls, packets)
+    Process.send_after(self(), {:handle_timeout, :rx}, timeout)
+    {:retransmit, packets, _timeout, rx_dtls} = wait_for_timeout(rx_dtls, :rx)
 
-    ExDTLS.process(tx_pid, packets)
-    packets = wait_for_retransmission(tx_pid)
+    # Create some space between the old timeout and the upcoming one.
+    # In other case those two timeouts can be very close to each other
+    # and waiting for the old one and handling it can trigger retransmission
+    # instead of noop
+    Process.sleep(500)
+    {:handshake_packets, _packets, timeout, tx_dtls} = ExDTLS.process(tx_dtls, packets)
+    Process.send_after(self(), {:handle_timeout, :tx}, timeout)
+    # wait for the old timeout
+    {:ok, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
+    # wait for the latest timeout
+    {:retransmit, packets, _timeout, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
 
-    assert finish_hsk(rx_pid, tx_pid, packets) == :ok
+    assert finish_hsk(rx_dtls, tx_dtls, packets) == :ok
   end
 
-  defp wait_for_retransmission(pid, first? \\ true) do
+  defp wait_for_timeout(dtls, dtls_type) do
     receive do
-      1000 ->
-        wait_for_retransmission(pid, false)
-
-      {:ex_dtls, ^pid, {:retransmit, packets}} ->
-        packets
-
-      _other ->
-        wait_for_retransmission(pid, first?)
+      {:handle_timeout, ^dtls_type} -> ExDTLS.handle_timeout(dtls)
     end
   end
 
-  defp finish_hsk(pid1, pid2, packets) do
-    {:handshake_finished, _handshake_data, packets} = ExDTLS.process(pid1, packets)
-
-    {:handshake_finished, _handshake_data} = ExDTLS.process(pid2, packets)
-
+  defp finish_hsk(rx_dtls, tx_dtls, packets) do
+    {:handshake_finished, _lkm, _rkm, _p, packets, _rx_dtls} = ExDTLS.process(rx_dtls, packets)
+    {:handshake_finished, _lkm, _rkm, _p, _tx_dtls} = ExDTLS.process(tx_dtls, packets)
     :ok
-  end
-
-  @tag :long_running
-  @tag timeout: :infinity
-  test "check reaching timeout limit" do
-    Process.flag(:trap_exit, true)
-
-    {:ok, rx_pid} = ExDTLS.start(client_mode: false, dtls_srtp: true)
-    {:ok, tx_pid} = ExDTLS.start(client_mode: true, dtls_srtp: true)
-    {:ok, packets} = ExDTLS.do_handshake(tx_pid)
-    {:handshake_packets, _packets} = ExDTLS.process(rx_pid, packets)
-
-    tx_monitor = Process.monitor(tx_pid)
-    rx_monitor = Process.monitor(rx_pid)
-
-    # ignore retransmissions
-    Process.sleep(ExDTLS.get_max_retransmit_timeout() * 2_000)
-
-    assert_received(
-      {:DOWN, ^tx_monitor, :process, ^tx_pid,
-       {%RuntimeError{message: "DTLS handshake reached max retransmission number"}, _}},
-      2000
-    )
-
-    assert_received(
-      {:DOWN, ^rx_monitor, :process, ^rx_pid,
-       {%RuntimeError{message: "DTLS handshake reached max retransmission number"}, _}},
-      2000
-    )
   end
 end

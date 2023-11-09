@@ -2,44 +2,42 @@ defmodule ExDTLSTest do
   use ExUnit.Case, async: true
 
   test "start with custom cert" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
 
-    {:ok, pkey} = ExDTLS.get_pkey(pid)
-    {:ok, cert} = ExDTLS.get_cert(pid)
+    {pkey, dtls} = ExDTLS.get_pkey(dtls)
+    {cert, _dtls} = ExDTLS.get_cert(dtls)
 
-    assert {:ok, pid2} =
-             ExDTLS.start_link(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
+    assert dtls2 = ExDTLS.init(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
 
-    assert {:ok, pid3} =
-             ExDTLS.start_link(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
+    assert dtls3 = ExDTLS.init(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
 
-    assert ExDTLS.get_pkey(pid2) == ExDTLS.get_pkey(pid3)
-    assert ExDTLS.get_cert(pid2) == ExDTLS.get_cert(pid3)
+    {dtls2_pkey, dtls2} = ExDTLS.get_pkey(dtls2)
+    {dtls2_cert, _dtls2} = ExDTLS.get_pkey(dtls2)
+    {dtls3_pkey, dtls3} = ExDTLS.get_pkey(dtls3)
+    {dtls3_cert, _dtls3} = ExDTLS.get_pkey(dtls3)
+
+    assert dtls2_pkey == dtls3_pkey
+    assert dtls2_cert == dtls3_cert
   end
 
   test "cert fingerprint" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
-    {:ok, fingerprint} = ExDTLS.get_cert_fingerprint(pid)
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    {fingerprint, _dtls} = ExDTLS.get_cert_fingerprint(dtls)
     assert byte_size(fingerprint) == 32
   end
 
   test "get pkey" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
-    assert {:ok, _pkey} = ExDTLS.get_pkey(pid)
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    assert {_pkey, _dtls} = ExDTLS.get_pkey(dtls)
   end
 
   test "get cert" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
-    assert {:ok, _cert} = ExDTLS.get_cert(pid)
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    assert {_cert, _dtls} = ExDTLS.get_cert(dtls)
   end
 
   test "generate cert" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
-    assert {:ok, _cert} = ExDTLS.generate_cert(pid)
-  end
-
-  test "stop" do
-    {:ok, pid} = ExDTLS.start_link(client_mode: false, dtls_srtp: false)
-    assert :ok = ExDTLS.stop(pid)
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    assert {_cert, _dtls} = ExDTLS.generate_cert(dtls)
   end
 end
