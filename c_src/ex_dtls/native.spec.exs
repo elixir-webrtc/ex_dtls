@@ -1,6 +1,6 @@
 module ExDTLS.Native
 
-interface [NIF, CNode]
+interface NIF
 
 state_type "State"
 
