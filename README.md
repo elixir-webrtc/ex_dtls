@@ -40,7 +40,7 @@ dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
 On a peer running in a client mode start performing DTLS handshake
 
 ```elixir
-{packets, timeout, dtls} = ExDTLS.do_handshake(dtls)
+{packets, timeout} = ExDTLS.do_handshake(dtls)
 ```
 
 You will obtain initial handshake packets and a `timeout`.
@@ -50,15 +50,15 @@ You will obtain initial handshake packets and a `timeout`.
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`:
 
 ```elixir
-{:handshake_packets, packets, timeout, dtls} = ExDTLS.process(dtls, packets)
+{:handshake_packets, packets, timeout} = ExDTLS.process(dtls, packets)
 ```
 
 As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
-The peer that finishes the handshake first will return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, packets, dtls}` tuple. 
+The peer that finishes the handshake first will return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, packets}` tuple. 
 These packets have to be sent to the second peer, so it can finish its handshake too and
-return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, dtls}` tuple.
+return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile}` tuple.
 
 For more complete examples please refer to [ex_webrtc] where we use `ex_dtls`
 or to our integration tests.

@@ -5,26 +5,26 @@ defmodule ExDTLS.RetransmissionTest do
     rx_dtls = ExDTLS.init(client_mode: false, dtls_srtp: true)
     tx_dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
 
-    {_packets, timeout, tx_dtls} = ExDTLS.do_handshake(tx_dtls)
+    {_packets, timeout} = ExDTLS.do_handshake(tx_dtls)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
-    {:retransmit, packets, timeout, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
+    {:retransmit, packets, timeout} = wait_for_timeout(tx_dtls, :tx)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
 
-    {:handshake_packets, _packets, timeout, rx_dtls} = ExDTLS.process(rx_dtls, packets)
+    {:handshake_packets, _packets, timeout} = ExDTLS.process(rx_dtls, packets)
     Process.send_after(self(), {:handle_timeout, :rx}, timeout)
-    {:retransmit, packets, _timeout, rx_dtls} = wait_for_timeout(rx_dtls, :rx)
+    {:retransmit, packets, _timeout} = wait_for_timeout(rx_dtls, :rx)
 
     # Create some space between the old timeout and the upcoming one.
     # In other case those two timeouts can be very close to each other
     # and waiting for the old one and handling it can trigger retransmission
     # instead of noop
     Process.sleep(500)
-    {:handshake_packets, _packets, timeout, tx_dtls} = ExDTLS.process(tx_dtls, packets)
+    {:handshake_packets, _packets, timeout} = ExDTLS.process(tx_dtls, packets)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
     # wait for the old timeout
-    {:ok, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
+    :ok = wait_for_timeout(tx_dtls, :tx)
     # wait for the latest timeout
-    {:retransmit, packets, _timeout, tx_dtls} = wait_for_timeout(tx_dtls, :tx)
+    {:retransmit, packets, _timeout} = wait_for_timeout(tx_dtls, :tx)
 
     assert finish_hsk(rx_dtls, tx_dtls, packets) == :ok
   end
@@ -36,8 +36,8 @@ defmodule ExDTLS.RetransmissionTest do
   end
 
   defp finish_hsk(rx_dtls, tx_dtls, packets) do
-    {:handshake_finished, _lkm, _rkm, _p, packets, _rx_dtls} = ExDTLS.process(rx_dtls, packets)
-    {:handshake_finished, _lkm, _rkm, _p, _tx_dtls} = ExDTLS.process(tx_dtls, packets)
+    {:handshake_finished, _lkm, _rkm, _p, packets} = ExDTLS.process(rx_dtls, packets)
+    {:handshake_finished, _lkm, _rkm, _p} = ExDTLS.process(tx_dtls, packets)
     :ok
   end
 end

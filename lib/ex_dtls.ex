@@ -70,15 +70,15 @@ defmodule ExDTLS do
 
   Returns DER representation in binary format.
   """
-  @spec generate_cert(dtls()) :: {cert :: binary(), dtls()}
-  defdelegate generate_cert(dtls), to: Native
+  @spec generate_cert() :: binary()
+  defdelegate generate_cert(), to: Native
 
   @doc """
   Gets current private key.
 
   Returns key specific representation in binary format.
   """
-  @spec get_pkey(dtls()) :: {pkey :: binary(), dtls()}
+  @spec get_pkey(dtls()) :: binary()
   defdelegate get_pkey(dtls), to: Native
 
   @doc """
@@ -86,13 +86,13 @@ defmodule ExDTLS do
 
   Returns DER representation in binary format.
   """
-  @spec get_cert(dtls()) :: {cert :: binary(), dtls()}
+  @spec get_cert(dtls()) :: binary()
   defdelegate get_cert(dtls), to: Native
 
   @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
-  @spec get_cert_fingerprint(dtls()) :: {fingerprint :: binary, dtls()}
+  @spec get_cert_fingerprint(dtls()) :: binary
   defdelegate get_cert_fingerprint(dtls), to: Native
 
   @doc """
@@ -103,7 +103,7 @@ defmodule ExDTLS do
 
   `timeout` is a time in ms after which `handle_timeout/1` should be called.
   """
-  @spec do_handshake(dtls()) :: {packets :: binary(), timeout :: integer(), dtls()}
+  @spec do_handshake(dtls()) :: {packets :: binary(), timeout :: integer()}
   defdelegate do_handshake(dtls), to: Native
 
   @doc """
@@ -120,19 +120,18 @@ defmodule ExDTLS do
   Both local and remote keying materials consist of `master key` and `master salt`.
   """
   @spec process(dtls(), packets :: binary()) ::
-          {:ok, packets :: binary(), dtls()}
-          | {:handshake_want_read, dtls()}
-          | {:handshake_packets, packets :: binary(), timeout :: integer(), dtls()}
+          {:ok, packets :: binary()}
+          | {:handshake_want_read}
+          | {:handshake_packets, packets :: binary(), timeout :: integer()}
           | {:handshake_finished, local_keying_material :: binary(),
-             remote_keying_material :: binary(), protection_profile_t(), packets :: binary(),
-             dtls()}
+             remote_keying_material :: binary(), protection_profile_t(), packets :: binary()}
           | {:handshake_finished, local_keying_material :: binary(),
-             remote_keying_material :: binary(), protection_profile_t(), dtls()}
-          | {:connection_closed, reason :: atom(), dtls()}
+             remote_keying_material :: binary(), protection_profile_t()}
+          | {:connection_closed, reason :: atom()}
   def process(dtls, packets) do
     case Native.process(dtls, packets) do
-      {:handshake_finished, lkm, rkm, protection_profile, <<>>, dtls} ->
-        {:handshake_finished, lkm, rkm, protection_profile, dtls}
+      {:handshake_finished, lkm, rkm, protection_profile, <<>>} ->
+        {:handshake_finished, lkm, rkm, protection_profile}
 
       other ->
         other
@@ -148,7 +147,6 @@ defmodule ExDTLS do
 
   If there is no timeout to handle, simple `{:ok, dtls()}` tuple is returned.
   """
-  @spec handle_timeout(dtls()) ::
-          {:ok, dtls()} | {:retransmit, packets :: binary(), timeout :: integer(), dtls()}
+  @spec handle_timeout(dtls()) :: :ok | {:retransmit, packets :: binary(), timeout :: integer()}
   defdelegate handle_timeout(dtls), to: Native
 end
