@@ -4,29 +4,27 @@ interface NIF
 
 state_type "State"
 
-spec init(client_mode :: bool, dtls_srtp :: bool) :: {:ok :: label, state}
+spec init(client_mode :: bool, dtls_srtp :: bool) :: state
 
-spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, pkey :: payload, cert :: payload) :: {:ok :: label, state}
+spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, pkey :: payload, cert :: payload) ::
+       state
 
-spec generate_cert(state) :: {{:ok :: label, cert :: payload}, state}
+spec generate_cert() :: cert :: payload
 
-spec get_pkey(state) :: {{:ok :: label, pkey :: payload}, state}
+spec get_pkey(state) :: pkey :: payload
 
-spec get_cert(state) :: {{:ok :: label, cert :: payload}, state}
+spec get_cert(state) :: cert :: payload
 
-spec get_cert_fingerprint(state) :: {{:ok :: label, fingerprint :: payload}, state}
+spec get_cert_fingerprint(state) :: fingerprint :: payload
 
-spec do_handshake(state) :: {{:ok :: label, packets :: payload}, state}
+spec do_handshake(state) :: {packets :: payload, timeout :: int}
 
-spec handle_timeout(state) :: {:ok :: label, state}
-                           | {{:retransmit :: label, packets :: payload}, state}
+spec handle_timeout(state) :: (:ok :: label) | {:retransmit :: label, packets :: payload, timeout :: int}
 
-spec process(state, packets :: payload) :: {:ok :: label, state, packets :: payload}
-                                           | {(:hsk_want_read :: label), state}
-                                           | {{:hsk_packets :: label, packets :: payload}, state}
-                                           | {{:hsk_finished :: label,
-                                              client_keying_material :: payload,
-                                              server_keying_material :: payload,
-                                              protection_profile :: int,
-                                              packets :: payload}, state}
-                                           | {{:connection_closed :: label, :peer_closed_for_writing :: label}, state}
+spec handle_data(state, packets :: payload) ::
+       {:ok :: label, packets :: payload}
+       | (:handshake_want_read :: label)
+       | {:handshake_packets :: label, packets :: payload, timeout :: int}
+       | {:handshake_finished :: label, client_keying_material :: payload,
+          server_keying_material :: payload, protection_profile :: int, packets :: payload}
+       | {:connection_closed :: label, :peer_closed_for_writing :: label}

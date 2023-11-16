@@ -6,10 +6,11 @@
 
 DTLS and DTLS-SRTP handshake library for Elixir, based on [OpenSSL].
 
-ElixirDTLS allows user to perform DTLS handshake (including DTLS-SRTP one) without requiring
-any socket. Instead, it generates DTLS packets that user has to transport to the peer.
-Thanks to this DTLS handshake can be performed on the third party socket e.g. one used to
-establish connection via ICE protocol.
+`ExDTLS` allows a user to perform DTLS handshake (including DTLS-SRTP one) without requiring
+any socket. 
+Instead, it generates DTLS packets that a user has to transport to the peer.
+Thanks to this DTLS handshake can be performed on the third-party socket e.g. one used to
+establish a connection via ICE protocol.
 
 ## Installation
 
@@ -33,35 +34,33 @@ Init `ExDTLS` on both peers with:
 ```elixir
 # One peer should be a client and use client_mode: true, the other - false
 # DTLS-SRTP is the most common use case for ExDTLS, we'll enable it
-{:ok, dtls} = ExDTLS.start_link(client_mode: true, dtls_srtp: true)
+dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
 ```
 
 On a peer running in a client mode start performing DTLS handshake
 
 ```elixir
-{:ok, packets} = ExDTLS.do_handshake(dtls)
+{packets, timeout} = ExDTLS.do_handshake(dtls)
 ```
 
-This will generate initial handshake packets. Now we have to pass them on the second peer.
-You can use for that e.g. a UDP socket, but we will not cover this here.
+You will obtain initial handshake packets and a `timeout`.
+`packets` has to be passed to the second peer (using your own socket UDP).
+`timeout` is a time after which `ExDTLS.handle_timeout/1` should be called.
 
-After receiving initial DTLS packets on the second peer pass them to `ExDTLS`
+After receiving initial DTLS packets on the second peer pass them to `ExDTLS`:
 
 ```elixir
-{:ok, packets} = ExDTLS.process(dtls, packets)
+{:handshake_packets, packets, timeout} = ExDTLS.handle_data(dtls, packets)
 ```
 
 As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
-Peer that finishes handshake first will return `{:finished, handshake_data, packets}`
-message. These packets have to be sent to the second peer, so it can finish its handshake too and
-return `{:finished, handshake_data}` message.
+The peer that finishes the handshake first will return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, packets}` tuple. 
+These packets have to be sent to the second peer, so it can finish its handshake too and
+return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile}` tuple.
 
-`ExDTLS` may also ask for retransmitting some packets if it thinks they were lost.
-See `t:ExDTLS.retransmit_msg_t/0`.
-
-For more complete examples please refer to [membrane_ice_plugin] where we use `ex_dtls`
+For more complete examples please refer to [ex_webrtc] where we use `ex_dtls`
 or to our integration tests.
 
 ## Copyright and License
@@ -73,4 +72,4 @@ Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_med
 Licensed under the [Apache License, Version 2.0](LICENSE)
 
 [OpenSSL]: https://www.openssl.org/
-[membrane_ice_plugin]: https://github.com/membraneframework/membrane_ice_plugin
+[ex_webrtc]: https://github.com/elixir-webrtc/ex_webrtc
