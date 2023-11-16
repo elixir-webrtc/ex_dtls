@@ -16,15 +16,3 @@ workflows:
       - elixir/lint:
           filters:
             <<: *filters
-      - elixir/hex_publish:
-          requires:
-            - elixir/build_test
-            - elixir/test
-            - elixir/lint
-          context:
-            - Deployment
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /v.*/
