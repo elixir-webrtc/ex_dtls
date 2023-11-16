@@ -2,7 +2,7 @@ defmodule ExDTLS.Mixfile do
   use Mix.Project
 
   @version "0.14.0"
-  @github_url "https://github.com/membraneframework/ex_dtls"
+  @github_url "https://github.com/elixir-webrtc/ex_dtls"
 
   def project do
     [
@@ -23,7 +23,17 @@ defmodule ExDTLS.Mixfile do
       name: "ExDTLS",
       source_url: @github_url,
       homepage_url: "https://membrane.stream",
-      docs: docs()
+      docs: docs(),
+
+      # code coverage
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ]
     ]
   end
 
@@ -41,7 +51,8 @@ defmodule ExDTLS.Mixfile do
       {:unifex, "~> 1.0"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:credo, "~> 1.7", only: :dev, runtime: false}
+      {:credo, "~> 1.7", only: :dev, runtime: false},
+      {:excoveralls, "~> 0.14", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -62,10 +73,7 @@ defmodule ExDTLS.Mixfile do
     [
       maintainers: ["Membrane Team"],
       licenses: ["Apache-2.0"],
-      links: %{
-        "GitHub" => @github_url,
-        "Membrane Framework Homepage" => "https://membrane.stream"
-      },
+      links: %{"GitHub" => @github_url},
       files: ["lib", "mix.exs", "README*", "LICENSE*", ".formatter.exs", "bundlex.exs", "c_src"],
       exclude_patterns: [~r"c_src/.*/_generated.*"]
     ]

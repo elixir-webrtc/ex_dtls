@@ -2,7 +2,8 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/ex_dtls.svg)](https://hex.pm/packages/ex_dtls)
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/ex_dtls/)
-[![CircleCI](https://circleci.com/gh/membraneframework/ex_dtls.svg?style=svg)](https://circleci.com/gh/membraneframework/ex_dtls)
+[![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_dtls/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_dtls/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/elixir-webrtc/ex_dtls/graph/badge.svg?token=E98NHC8B00)](https://codecov.io/gh/elixir-webrtc/ex_dtls)
 
 DTLS and DTLS-SRTP handshake library for Elixir, based on [OpenSSL].
 
