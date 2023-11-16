@@ -21,9 +21,9 @@ spec do_handshake(state) :: {packets :: payload, timeout :: int}
 
 spec handle_timeout(state) :: (:ok :: label) | {:retransmit :: label, packets :: payload, timeout :: int}
 
-spec process(state, packets :: payload) ::
+spec handle_data(state, packets :: payload) ::
        {:ok :: label, packets :: payload}
-       | {:handshake_want_read :: label}
+       | (:handshake_want_read :: label)
        | {:handshake_packets :: label, packets :: payload, timeout :: int}
        | {:handshake_finished :: label, client_keying_material :: payload,
           server_keying_material :: payload, protection_profile :: int, packets :: payload}

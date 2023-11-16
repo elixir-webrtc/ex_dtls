@@ -107,7 +107,7 @@ defmodule ExDTLS do
   defdelegate do_handshake(dtls), to: Native
 
   @doc """
-  Processes peer's packets.
+  Handles peer's packets.
 
   If handshake is finished it returns `{:ok, binary()}` which is decoded data
   or `{:error, value}` if error occurred.
@@ -119,17 +119,17 @@ defmodule ExDTLS do
 
   Both local and remote keying materials consist of `master key` and `master salt`.
   """
-  @spec process(dtls(), packets :: binary()) ::
+  @spec handle_data(dtls(), packets :: binary()) ::
           {:ok, packets :: binary()}
-          | {:handshake_want_read}
+          | :handshake_want_read
           | {:handshake_packets, packets :: binary(), timeout :: integer()}
           | {:handshake_finished, local_keying_material :: binary(),
              remote_keying_material :: binary(), protection_profile_t(), packets :: binary()}
           | {:handshake_finished, local_keying_material :: binary(),
              remote_keying_material :: binary(), protection_profile_t()}
           | {:connection_closed, reason :: atom()}
-  def process(dtls, packets) do
-    case Native.process(dtls, packets) do
+  def handle_data(dtls, packets) do
+    case Native.handle_data(dtls, packets) do
       {:handshake_finished, lkm, rkm, protection_profile, <<>>} ->
         {:handshake_finished, lkm, rkm, protection_profile}
 

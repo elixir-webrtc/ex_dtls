@@ -10,7 +10,7 @@ defmodule ExDTLS.RetransmissionTest do
     {:retransmit, packets, timeout} = wait_for_timeout(tx_dtls, :tx)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
 
-    {:handshake_packets, _packets, timeout} = ExDTLS.process(rx_dtls, packets)
+    {:handshake_packets, _packets, timeout} = ExDTLS.handle_data(rx_dtls, packets)
     Process.send_after(self(), {:handle_timeout, :rx}, timeout)
     {:retransmit, packets, _timeout} = wait_for_timeout(rx_dtls, :rx)
 
@@ -19,7 +19,7 @@ defmodule ExDTLS.RetransmissionTest do
     # and waiting for the old one and handling it can trigger retransmission
     # instead of noop
     Process.sleep(500)
-    {:handshake_packets, _packets, timeout} = ExDTLS.process(tx_dtls, packets)
+    {:handshake_packets, _packets, timeout} = ExDTLS.handle_data(tx_dtls, packets)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
     # wait for the old timeout
     :ok = wait_for_timeout(tx_dtls, :tx)
@@ -36,8 +36,8 @@ defmodule ExDTLS.RetransmissionTest do
   end
 
   defp finish_hsk(rx_dtls, tx_dtls, packets) do
-    {:handshake_finished, _lkm, _rkm, _p, packets} = ExDTLS.process(rx_dtls, packets)
-    {:handshake_finished, _lkm, _rkm, _p} = ExDTLS.process(tx_dtls, packets)
+    {:handshake_finished, _lkm, _rkm, _p, packets} = ExDTLS.handle_data(rx_dtls, packets)
+    {:handshake_finished, _lkm, _rkm, _p} = ExDTLS.handle_data(tx_dtls, packets)
     :ok
   end
 end

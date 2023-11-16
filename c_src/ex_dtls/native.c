@@ -210,7 +210,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
   return unifex_raise(state->env, "Handshake failed: no packets generated");
 }
 
-UNIFEX_TERM process(UnifexEnv *env, State *state, UnifexPayload *payload) {
+UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   (void)env;
 
   if (payload->size != 0) {
@@ -246,7 +246,7 @@ UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
     unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, ret, &packets);
     memcpy(packets.data, data, ret);
     packets.size = (unsigned int)ret;
-    UNIFEX_TERM res_term = process_result_ok(state->env, &packets);
+    UNIFEX_TERM res_term = handle_data_result_ok(state->env, &packets);
     unifex_payload_release(&packets);
     return res_term;
   }
@@ -259,10 +259,10 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   int error = SSL_get_error(state->ssl, ret);
   switch (error) {
   case SSL_ERROR_ZERO_RETURN:
-    return process_result_connection_closed_peer_closed_for_writing(state->env);
+    return handle_data_result_connection_closed_peer_closed_for_writing(state->env);
   case SSL_ERROR_WANT_READ:
     DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?");
-    return process_result_handshake_want_read(state->env);
+    return handle_data_result_handshake_want_read(state->env);
   default:
     DEBUG("SSL ERROR: %d", error);
     return unifex_raise(state->env, "SSL read error");
@@ -316,7 +316,7 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
     remote_keying_material = &client_keying_material;
   }
 
-  res_term = process_result_handshake_finished(
+  res_term = handle_data_result_handshake_finished(
       state->env, local_keying_material, remote_keying_material,
       keying_material->protection_profile, &gen_packets);
 
@@ -343,12 +343,12 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
         return unifex_raise(state->env, "Handshake failed: write BIO error");
       }
       int timeout = get_timeout(state);
-      UNIFEX_TERM res_term = process_result_handshake_packets(
+      UNIFEX_TERM res_term = handle_data_result_handshake_packets(
           state->env, &gen_packets, timeout);
       unifex_payload_release(&gen_packets);
       return res_term;
     } else {
-      return process_result_handshake_want_read(state->env);
+      return handle_data_result_handshake_want_read(state->env);
     }
   default:
     return handle_read_error(state, ret);

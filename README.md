@@ -50,7 +50,7 @@ You will obtain initial handshake packets and a `timeout`.
 After receiving initial DTLS packets on the second peer pass them to `ExDTLS`:
 
 ```elixir
-{:handshake_packets, packets, timeout} = ExDTLS.process(dtls, packets)
+{:handshake_packets, packets, timeout} = ExDTLS.handle_data(dtls, packets)
 ```
 
 As a result, we will also get some new packets that have to be passed to the first peer.

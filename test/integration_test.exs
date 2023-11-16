@@ -13,7 +13,7 @@ defmodule ExDTLS.IntegrationTest do
   end
 
   defp loop({dtls1, state1}, {dtls2, state2}, packets) do
-    case ExDTLS.process(dtls1, packets) do
+    case ExDTLS.handle_data(dtls1, packets) do
       {:handshake_packets, packets, _timeout} ->
         loop({dtls2, state2}, {dtls1, state1}, packets)
 
