@@ -16,8 +16,8 @@ defmodule ExDTLSTest do
   end
 
   test "cert fingerprint" do
-    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
-    fingerprint = ExDTLS.get_cert_fingerprint(dtls)
+    assert {_pkey, cert} = ExDTLS.generate_key_cert()
+    fingerprint = ExDTLS.get_cert_fingerprint(cert)
     assert byte_size(fingerprint) == 32
   end
 
@@ -32,8 +32,16 @@ defmodule ExDTLSTest do
   end
 
   test "generate cert" do
-    assert cert = ExDTLS.generate_cert()
+    assert {pkey, cert} = ExDTLS.generate_key_cert()
+    assert pkey != <<>>
     assert cert != <<>>
+    assert is_binary(pkey) == true
     assert is_binary(cert) == true
+  end
+
+  test "get peer cert" do
+    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    # before finishing handshake, there should be no peer cert
+    assert nil == ExDTLS.get_peer_cert(dtls)
   end
 end

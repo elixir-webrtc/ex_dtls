@@ -4,18 +4,20 @@ interface NIF
 
 state_type "State"
 
-spec init(client_mode :: bool, dtls_srtp :: bool) :: state
+spec init(client_mode :: bool, dtls_srtp :: bool, verify_peer :: bool) :: state
 
-spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, pkey :: payload, cert :: payload) ::
+spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
        state
 
-spec generate_cert() :: cert :: payload
+spec generate_key_cert() :: {pkey :: payload, cert :: payload}
 
-spec get_pkey(state) :: pkey :: payload
+spec get_pkey(state) :: payload
 
-spec get_cert(state) :: cert :: payload
+spec get_cert(state) :: payload
 
-spec get_cert_fingerprint(state) :: fingerprint :: payload
+spec get_peer_cert(state) :: payload | (nil :: label)
+
+spec get_cert_fingerprint(payload) :: payload
 
 spec do_handshake(state) :: {packets :: payload, timeout :: int}
 

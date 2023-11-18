@@ -198,3 +198,12 @@ X509 *decode_cert(unsigned char *buf, int len) {
   p = buf;
   return d2i_X509(NULL, &p, len);
 }
+
+int get_timeout(SSL *ssl) {
+  struct timeval timeout;
+  int timeout_ms = 0;
+  if (DTLSv1_get_timeout(ssl, &timeout) == 1) {
+    timeout_ms = timeout.tv_sec * 1000 + (timeout.tv_usec / 1000);
+  }
+  return timeout_ms;
+}

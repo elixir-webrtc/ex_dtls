@@ -15,6 +15,7 @@ defmodule ExDTLS.BundlexProject do
         pkg_configs: ["openssl"],
         libs: ["pthread"],
         interface: [:nif],
+        # compiler_flags: ["-DEXDTLS_DEBUG"],
         preprocessor: Unifex
       ]
     ]

@@ -64,6 +64,11 @@ return `{:handshake_finished, local_keying_material, remote_keying_material, pro
 For more complete examples please refer to [ex_webrtc] where we use `ex_dtls`
 or to our integration tests.
 
+## Debugging
+
+Add `compiler_flags: ["-DEXDTLS_DEBUG"],` in `bundlex.exs` to
+get debug logs from the native code.
+
 ## Copyright and License
 
 Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=ex_dtls)
