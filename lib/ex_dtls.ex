@@ -49,13 +49,13 @@ defmodule ExDTLS do
   If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
   * `verify_peer` - `true` if peer's certificate should be verified.
   Note that if `verify_peer` is `false`, `get_peer_cert/1` called on `ExDTLS` working in the
-  server mode, will always return `nil`. Defaults to `true`.
+  server mode, will always return `nil`. Defaults to `false`.
   """
   @spec init(opts :: opts_t) :: dtls()
   def init(opts) do
     srtp = Keyword.get(opts, :dtls_srtp, false)
     mode = Keyword.fetch!(opts, :mode)
-    verify_peer = Keyword.get(opts, :verify_peer, true)
+    verify_peer = Keyword.get(opts, :verify_peer, false)
 
     cond do
       opts[:pkey] == nil and opts[:cert] == nil ->

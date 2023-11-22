@@ -2,8 +2,8 @@ defmodule ExDTLS.IntegrationTest do
   use ExUnit.Case, async: true
 
   test "dtls_srtp" do
-    rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true)
-    tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
+    rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+    tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
 
     {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
 
@@ -14,7 +14,7 @@ defmodule ExDTLS.IntegrationTest do
   end
 
   test "dtls_srtp with no verify_peer" do
-    rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: false)
+    rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true)
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 
     {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
