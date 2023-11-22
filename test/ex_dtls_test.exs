@@ -2,14 +2,14 @@ defmodule ExDTLSTest do
   use ExUnit.Case, async: true
 
   test "start with custom cert" do
-    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    dtls = ExDTLS.init(mode: :server, dtls_srtp: false)
 
     pkey = ExDTLS.get_pkey(dtls)
     cert = ExDTLS.get_cert(dtls)
 
-    assert dtls2 = ExDTLS.init(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
+    assert dtls2 = ExDTLS.init(mode: :server, dtls_srtp: false, pkey: pkey, cert: cert)
 
-    assert dtls3 = ExDTLS.init(client_mode: false, dtls_srtp: false, pkey: pkey, cert: cert)
+    assert dtls3 = ExDTLS.init(mode: :server, dtls_srtp: false, pkey: pkey, cert: cert)
 
     assert ExDTLS.get_pkey(dtls2) == ExDTLS.get_pkey(dtls3)
     assert ExDTLS.get_pkey(dtls2) == ExDTLS.get_pkey(dtls3)
@@ -22,12 +22,12 @@ defmodule ExDTLSTest do
   end
 
   test "get pkey" do
-    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    dtls = ExDTLS.init(mode: :server, dtls_srtp: false)
     assert _pkey = ExDTLS.get_pkey(dtls)
   end
 
   test "get cert" do
-    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    dtls = ExDTLS.init(mode: :server, dtls_srtp: false)
     assert _cert = ExDTLS.get_cert(dtls)
   end
 
@@ -40,7 +40,7 @@ defmodule ExDTLSTest do
   end
 
   test "get peer cert" do
-    dtls = ExDTLS.init(client_mode: false, dtls_srtp: false)
+    dtls = ExDTLS.init(mode: :server, dtls_srtp: false)
     # before finishing handshake, there should be no peer cert
     assert nil == ExDTLS.get_peer_cert(dtls)
   end

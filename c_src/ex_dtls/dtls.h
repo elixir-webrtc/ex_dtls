@@ -10,6 +10,9 @@
 
 #include "log.h"
 
+#define MODE_CLIENT 0
+#define MODE_SERVER 1
+
 typedef struct KeyingMaterial {
   unsigned char *client; // client keying material - master key + master salt
   unsigned char *server;

@@ -4,9 +4,9 @@ interface NIF
 
 state_type "State"
 
-spec init(client_mode :: bool, dtls_srtp :: bool, verify_peer :: bool) :: state
+spec init(mode :: atom, dtls_srtp :: bool, verify_peer :: bool) :: state
 
-spec init_from_key_cert(client_mode :: bool, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
+spec init_from_key_cert(mode :: atom, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
        state
 
 spec generate_key_cert() :: {pkey :: payload, cert :: payload}

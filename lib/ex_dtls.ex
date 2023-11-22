@@ -15,10 +15,11 @@ defmodule ExDTLS do
   See `init/1` for the meaning of each option
   """
   @type opts_t :: [
-          client_mode: boolean(),
+          mode: :client | :server,
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary()
+          cert: binary(),
+          verify_peer: boolean()
         ]
 
   @typedoc """
@@ -38,7 +39,7 @@ defmodule ExDTLS do
   Initializes `ExDTLS`.
 
   Accepts a keyword list with the following options (`t:opts_t/0`):
-  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server.
+  * `mode` - `:client` if ExDTLS module should work as a client or `:server` if as a server.
   This option is required.
   * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one.
   Defaults to `false`.
@@ -53,15 +54,15 @@ defmodule ExDTLS do
   @spec init(opts :: opts_t) :: dtls()
   def init(opts) do
     srtp = Keyword.get(opts, :dtls_srtp, false)
-    client = Keyword.fetch!(opts, :client_mode)
+    mode = Keyword.fetch!(opts, :mode)
     verify_peer = Keyword.get(opts, :verify_peer, true)
 
     cond do
       opts[:pkey] == nil and opts[:cert] == nil ->
-        Native.init(client, srtp, verify_peer)
+        Native.init(mode, srtp, verify_peer)
 
       opts[:pkey] != nil and opts[:cert] != nil ->
-        Native.init_from_key_cert(client, srtp, verify_peer, opts[:pkey], opts[:cert])
+        Native.init_from_key_cert(mode, srtp, verify_peer, opts[:pkey], opts[:cert])
 
       true ->
         raise ArgumentError, """

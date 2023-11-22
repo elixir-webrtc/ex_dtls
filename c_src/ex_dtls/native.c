@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -14,14 +15,14 @@ static void cert_to_payload(UnifexEnv *env, X509 *x509, UnifexPayload *payload);
 static void pkey_to_payload(UnifexEnv *env, EVP_PKEY *pkey,
                             UnifexPayload *payload);
 
-UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
-                    int verify_peer, EVP_PKEY *pkey, X509 *x509);
+UNIFEX_TERM do_init(UnifexEnv *env, char *mode, int dtls_srtp, int verify_peer,
+                    EVP_PKEY *pkey, X509 *x509);
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
 UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 
-UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp,
+UNIFEX_TERM init(UnifexEnv *env, char *mode_str, int dtls_srtp,
                  int verify_peer) {
   UNIFEX_TERM res_term;
 
@@ -37,12 +38,12 @@ UNIFEX_TERM init(UnifexEnv *env, int client_mode, int dtls_srtp,
     goto exit;
   }
 
-  res_term = do_init(env, client_mode, dtls_srtp, verify_peer, pkey, x509);
+  res_term = do_init(env, mode_str, dtls_srtp, verify_peer, pkey, x509);
 exit:
   return res_term;
 }
 
-UNIFEX_TERM init_from_key_cert(UnifexEnv *env, int client_mode, int dtls_srtp,
+UNIFEX_TERM init_from_key_cert(UnifexEnv *env, char *mode_str, int dtls_srtp,
                                int verify_peer, UnifexPayload *pkey,
                                UnifexPayload *cert) {
   UNIFEX_TERM res_term;
@@ -59,16 +60,34 @@ UNIFEX_TERM init_from_key_cert(UnifexEnv *env, int client_mode, int dtls_srtp,
     goto exit;
   }
 
-  res_term = do_init(env, client_mode, dtls_srtp, verify_peer, evp_pkey, x509);
+  res_term = do_init(env, mode_str, dtls_srtp, verify_peer, evp_pkey, x509);
 exit:
   return res_term;
 }
 
-UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
+UNIFEX_TERM do_init(UnifexEnv *env, char *mode_str, int dtls_srtp,
                     int verify_peer, EVP_PKEY *pkey, X509 *x509) {
   UNIFEX_TERM res_term;
+
   State *state = unifex_alloc_state(env);
+  state->ssl_ctx = NULL;
+  state->ssl = NULL;
+  state->pkey = NULL;
+  state->x509 = NULL;
+  state->mode = 0;
+  state->hsk_finished = 0;
   state->env = unifex_alloc_env(env);
+
+  int mode;
+  if (strcmp(mode_str, "client") == 0) {
+    mode = MODE_CLIENT;
+  } else if (strcmp(mode_str, "server") == 0) {
+    mode = MODE_SERVER;
+  } else {
+    res_term = unifex_raise(env, "Invalid DTLS mode");
+    goto exit;
+  }
+  state->mode = mode;
 
   state->ssl_ctx = create_ctx(dtls_srtp);
   if (state->ssl_ctx == NULL) {
@@ -92,13 +111,12 @@ UNIFEX_TERM do_init(UnifexEnv *env, int client_mode, int dtls_srtp,
     goto exit;
   }
 
-  state->ssl = create_ssl(state->ssl_ctx, client_mode);
+  state->ssl = create_ssl(state->ssl_ctx, state->mode);
   if (state->ssl == NULL) {
     res_term = unifex_raise(env, "Cannot create ssl");
     goto exit;
   }
 
-  state->client_mode = client_mode;
   state->hsk_finished = 0;
   SSL_set_info_callback(state->ssl, ssl_info_cb);
   res_term = init_from_key_cert_result(env, state);
@@ -312,7 +330,7 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
   UnifexPayload *local_keying_material;
   UnifexPayload *remote_keying_material;
 
-  if (state->client_mode == 1) {
+  if (state->mode == MODE_CLIENT) {
     local_keying_material = &client_keying_material;
     remote_keying_material = &server_keying_material;
   } else {
@@ -438,19 +456,23 @@ void handle_destroy_state(UnifexEnv *env, State *state) {
   UNIFEX_UNUSED(env);
   DEBUG("Destroying state");
 
-  if (state->ssl_ctx) {
+  if (state->ssl_ctx != NULL) {
+    DEBUG("Freeing SSL_CTX");
     SSL_CTX_free(state->ssl_ctx);
   }
 
-  if (state->ssl) {
+  if (state->ssl != NULL) {
+    DEBUG("Freeing SSL");
     SSL_free(state->ssl);
   }
 
-  if (state->x509) {
+  if (state->x509 != NULL) {
+    DEBUG("Freeing X509");
     X509_free(state->x509);
   }
 
-  if (state->pkey) {
+  if (state->pkey != NULL) {
+    DEBUG("Freeing PKEY");
     EVP_PKEY_free(state->pkey);
   }
 }

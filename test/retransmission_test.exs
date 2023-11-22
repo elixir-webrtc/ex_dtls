@@ -2,8 +2,8 @@ defmodule ExDTLS.RetransmissionTest do
   use ExUnit.Case, async: true
 
   test "retransmission" do
-    rx_dtls = ExDTLS.init(client_mode: false, dtls_srtp: true)
-    tx_dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
+    rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true)
+    tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 
     {_packets, timeout} = ExDTLS.do_handshake(tx_dtls)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
