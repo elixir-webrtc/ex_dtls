@@ -11,7 +11,7 @@ struct State {
   SSL *ssl;
   EVP_PKEY *pkey;
   X509 *x509;
-  int client_mode;
+  int mode;
   int hsk_finished;
 };
 

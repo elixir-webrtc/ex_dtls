@@ -19,16 +19,18 @@ SSL_CTX *create_ctx(int dtls_srtp) {
   return ssl_ctx;
 }
 
-SSL *create_ssl(SSL_CTX *ssl_ctx, int client_mode) {
+SSL *create_ssl(SSL_CTX *ssl_ctx, int mode) {
   SSL *ssl = SSL_new(ssl_ctx);
   if (ssl == NULL) {
     return NULL;
   }
 
-  if (client_mode) {
+  if (mode == MODE_CLIENT) {
     SSL_set_connect_state(ssl);
-  } else {
+  } else if (mode == MODE_SERVER) {
     SSL_set_accept_state(ssl);
+  } else {
+    return NULL;
   }
 
   BIO *rbio = BIO_new(BIO_s_mem());
@@ -197,4 +199,13 @@ X509 *decode_cert(unsigned char *buf, int len) {
   const unsigned char *p;
   p = buf;
   return d2i_X509(NULL, &p, len);
+}
+
+int get_timeout(SSL *ssl) {
+  struct timeval timeout;
+  int timeout_ms = 0;
+  if (DTLSv1_get_timeout(ssl, &timeout) == 1) {
+    timeout_ms = timeout.tv_sec * 1000 + (timeout.tv_usec / 1000);
+  }
+  return timeout_ms;
 }

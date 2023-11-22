@@ -15,10 +15,11 @@ defmodule ExDTLS do
   See `init/1` for the meaning of each option
   """
   @type opts_t :: [
-          client_mode: boolean(),
+          mode: :client | :server,
           dtls_srtp: boolean(),
           pkey: binary(),
-          cert: binary()
+          cert: binary(),
+          verify_peer: boolean()
         ]
 
   @typedoc """
@@ -38,24 +39,30 @@ defmodule ExDTLS do
   Initializes `ExDTLS`.
 
   Accepts a keyword list with the following options (`t:opts_t/0`):
-  * `client_mode` - `true` if ExDTLS module should work as a client or `false` if as a server
-  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one
-  * `pkey` - private key to use in this SSL context. Must correspond to `cert`
-  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`
-
+  * `mode` - `:client` if ExDTLS module should work as a client or `:server` if as a server.
+  This option is required.
+  * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one.
+  Defaults to `false`.
+  * `pkey` - private key to use in this SSL context. Must correspond to `cert`.
   If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+  * `cert` - certificate to use in this SSL context. Must correspond to `pkey`.
+  If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+  * `verify_peer` - `true` if peer's certificate should be verified.
+  Note that if `verify_peer` is `false`, `get_peer_cert/1` called on `ExDTLS` working in the
+  server mode, will always return `nil`. Defaults to `true`.
   """
   @spec init(opts :: opts_t) :: dtls()
   def init(opts) do
-    srtp? = Keyword.get(opts, :dtls_srtp, false)
-    client? = Keyword.fetch!(opts, :client_mode)
+    srtp = Keyword.get(opts, :dtls_srtp, false)
+    mode = Keyword.fetch!(opts, :mode)
+    verify_peer = Keyword.get(opts, :verify_peer, true)
 
     cond do
       opts[:pkey] == nil and opts[:cert] == nil ->
-        Native.init(client?, srtp?)
+        Native.init(mode, srtp, verify_peer)
 
       opts[:pkey] != nil and opts[:cert] != nil ->
-        Native.init_from_key_cert(client?, srtp?, opts[:pkey], opts[:cert])
+        Native.init_from_key_cert(mode, srtp, verify_peer, opts[:pkey], opts[:cert])
 
       true ->
         raise ArgumentError, """
@@ -66,15 +73,15 @@ defmodule ExDTLS do
   end
 
   @doc """
-  Generates new certificate.
+  Generates a new key/certificate pair.
 
   Returns DER representation in binary format.
   """
-  @spec generate_cert() :: binary()
-  defdelegate generate_cert(), to: Native
+  @spec generate_key_cert() :: {pkey :: binary(), cert :: binary()}
+  defdelegate generate_key_cert(), to: Native
 
   @doc """
-  Gets current private key.
+  Gets current, local private key.
 
   Returns key specific representation in binary format.
   """
@@ -82,7 +89,7 @@ defmodule ExDTLS do
   defdelegate get_pkey(dtls), to: Native
 
   @doc """
-  Gets current certificate.
+  Gets current, local certificate.
 
   Returns DER representation in binary format.
   """
@@ -90,10 +97,27 @@ defmodule ExDTLS do
   defdelegate get_cert(dtls), to: Native
 
   @doc """
+  Gets peer certificate.
+
+  Returns DER representation in binary format or `nil` 
+  when no certificate was presented by the peer or no connection
+  was established.
+  """
+  @spec get_peer_cert(dtls()) :: binary() | nil
+  def get_peer_cert(dtls) do
+    case Native.get_peer_cert(dtls) do
+      # Unifex can't return nil
+      # see https://github.com/membraneframework/membrane_core/issues/684
+      :"" -> nil
+      other -> other
+    end
+  end
+
+  @doc """
   Returns a digest of the DER representation of the X509 certificate.
   """
-  @spec get_cert_fingerprint(dtls()) :: binary
-  defdelegate get_cert_fingerprint(dtls), to: Native
+  @spec get_cert_fingerprint(binary()) :: binary()
+  defdelegate get_cert_fingerprint(cert), to: Native
 
   @doc """
   Starts performing DTLS handshake.
