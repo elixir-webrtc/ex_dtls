@@ -33,9 +33,10 @@ Make sure you have it installed on your OS.
 Init `ExDTLS` on both peers with:
 
 ```elixir
-# One peer should be a client and use client_mode: true, the other - false
-# DTLS-SRTP is the most common use case for ExDTLS, we'll enable it
-dtls = ExDTLS.init(client_mode: true, dtls_srtp: true)
+# One peer should be a client (use `mode: :client`) and the other 
+# one a server (use `mode: :server`). 
+# DTLS-SRTP is the most common use case for ExDTLS, we'll enable it.
+dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 ```
 
 On a peer running in a client mode start performing DTLS handshake

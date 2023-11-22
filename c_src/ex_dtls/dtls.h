@@ -21,7 +21,7 @@ typedef struct KeyingMaterial {
 } KeyingMaterial;
 
 SSL_CTX *create_ctx(int dtls_srtp);
-SSL *create_ssl(SSL_CTX *ssl_ctx, int client_mode);
+SSL *create_ssl(SSL_CTX *ssl_ctx, int mode);
 KeyingMaterial *export_keying_material(SSL *ssl);
 EVP_PKEY *gen_key();
 X509 *gen_cert(EVP_PKEY *pkey);
