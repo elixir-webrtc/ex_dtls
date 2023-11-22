@@ -27,6 +27,20 @@ defmodule ExDTLS.IntegrationTest do
     assert ExDTLS.get_peer_cert(rx_dtls) == nil
   end
 
+  test "expired cert" do
+    # generate expired cert
+    {key, cert} = ExDTLS.generate_key_cert(-1, 0)
+
+    rx_dtls =
+      ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true, pkey: key, cert: cert)
+
+    tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
+
+    {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+    {:handshake_packets, packets, _timeout} = ExDTLS.handle_data(rx_dtls, packets)
+    assert {:error, :handshake_error} = ExDTLS.handle_data(tx_dtls, packets)
+  end
+
   defp loop({_dtls1, true}, {_dtls2, true}, _packets) do
     :ok
   end

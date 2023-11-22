@@ -24,7 +24,7 @@ SSL_CTX *create_ctx(int dtls_srtp);
 SSL *create_ssl(SSL_CTX *ssl_ctx, int mode);
 KeyingMaterial *export_keying_material(SSL *ssl);
 EVP_PKEY *gen_key();
-X509 *gen_cert(EVP_PKEY *pkey);
+X509 *gen_cert(EVP_PKEY *pkey, long not_before, long not_after);
 EVP_PKEY *decode_pkey(unsigned char *buf, int len);
 X509 *decode_cert(unsigned char *buf, int len);
 int get_timeout(SSL *ssl);
