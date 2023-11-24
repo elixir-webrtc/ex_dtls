@@ -9,7 +9,7 @@ spec init(mode :: atom, dtls_srtp :: bool, verify_peer :: bool) :: state
 spec init_from_key_cert(mode :: atom, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
        state
 
-spec generate_key_cert() :: {pkey :: payload, cert :: payload}
+spec generate_key_cert(not_before :: int64, not_after :: int64) :: {pkey :: payload, cert :: payload}
 
 spec get_pkey(state) :: payload
 
@@ -29,4 +29,6 @@ spec handle_data(state, packets :: payload) ::
        | {:handshake_packets :: label, packets :: payload, timeout :: int}
        | {:handshake_finished :: label, client_keying_material :: payload,
           server_keying_material :: payload, protection_profile :: int, packets :: payload}
-       | {:connection_closed :: label, :peer_closed_for_writing :: label}
+       | {:error :: label, :peer_closed_for_writing :: label}
+       | {:error :: label, :handshake_error :: label
+}

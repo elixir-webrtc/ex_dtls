@@ -32,7 +32,7 @@ UNIFEX_TERM init(UnifexEnv *env, char *mode_str, int dtls_srtp,
     goto exit;
   }
 
-  X509 *x509 = gen_cert(pkey);
+  X509 *x509 = gen_cert(pkey, -31536000L, 31536000L);
   if (x509 == NULL) {
     res_term = unifex_raise(env, "Cannot generate cert");
     goto exit;
@@ -96,7 +96,9 @@ UNIFEX_TERM do_init(UnifexEnv *env, char *mode_str, int dtls_srtp,
   }
 
   if (verify_peer == 1) {
-    SSL_CTX_set_verify(state->ssl_ctx, SSL_VERIFY_PEER, verify_cb);
+    SSL_CTX_set_verify(state->ssl_ctx,
+                       SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_PEER,
+                       verify_cb);
   }
 
   state->pkey = pkey;
@@ -126,12 +128,12 @@ exit:
   return res_term;
 }
 
-UNIFEX_TERM generate_key_cert(UnifexEnv *env) {
+UNIFEX_TERM generate_key_cert(UnifexEnv *env, long not_before, long not_after) {
   UnifexPayload pkey_payload;
   UnifexPayload cert_payload;
 
   EVP_PKEY *pkey = gen_key();
-  X509 *cert = gen_cert(pkey);
+  X509 *cert = gen_cert(pkey, not_before, not_after);
 
   pkey_to_payload(env, pkey, &pkey_payload);
   cert_to_payload(env, cert, &cert_payload);
@@ -280,14 +282,20 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   int error = SSL_get_error(state->ssl, ret);
   switch (error) {
   case SSL_ERROR_ZERO_RETURN:
-    return handle_data_result_connection_closed_peer_closed_for_writing(
-        state->env);
+    return handle_data_result_error_peer_closed_for_writing(state->env);
   case SSL_ERROR_WANT_READ:
     DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?");
     return handle_data_result_handshake_want_read(state->env);
   default:
-    DEBUG("SSL ERROR: %d", error);
-    return unifex_raise(state->env, "SSL read error");
+    DEBUG("SSL ERROR. Code: %d, desc: %s", error,
+          ERR_reason_error_string(ERR_get_error()));
+    if (state->hsk_finished == 0) {
+      // If handshake is in-progress, return handshake error.
+      // Otherwise, we failed when trying to decrypt data.
+      return handle_data_result_error_handshake_error(state->env);
+    } else {
+      return unifex_raise(state->env, "SSL read error");
+    }
   }
 }
 
@@ -402,18 +410,37 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
 
 static void ssl_info_cb(const SSL *ssl, int where, int ret) {
   UNIFEX_UNUSED(ssl);
-  UNIFEX_UNUSED(ret);
+  UNIFEX_MAYBE_UNUSED(ret);
+
   if (where & SSL_CB_ALERT) {
-    DEBUG("DTLS alert occurred.");
+    const char *type = SSL_alert_type_string(ret);
+    const char *type_long = SSL_alert_type_string_long(ret);
+    const char *desc = SSL_alert_desc_string(ret);
+    const char *desc_long = SSL_alert_desc_string_long(ret);
+
+    UNIFEX_MAYBE_UNUSED(type);
+    UNIFEX_MAYBE_UNUSED(type_long);
+    UNIFEX_MAYBE_UNUSED(desc);
+    UNIFEX_MAYBE_UNUSED(desc_long);
+
+    DEBUG("DTLS alert occurred, where: %d, ret: %d, type: %s, type_long: %s, "
+          "desc: %s, desc_long: %s",
+          where, ret, type, type_long, desc, desc_long);
   }
 }
 
 static int verify_cb(int preverify_ok, X509_STORE_CTX *ctx) {
-  // TODO implement this callback
-  UNIFEX_UNUSED(preverify_ok);
-  UNIFEX_UNUSED(ctx);
-  DEBUG("Verify callback, preverify_ok: %d", preverify_ok);
-  return 1;
+  int err = X509_STORE_CTX_get_error(ctx);
+
+  if (err == X509_V_ERR_CERT_HAS_EXPIRED) {
+    // decline expired certs
+    return 0;
+  } else if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
+    // accept self-signed certs
+    return 1;
+  } else {
+    return preverify_ok;
+  }
 }
 
 static int read_pending_data(UnifexPayload *gen_packets, int pending_data_len,

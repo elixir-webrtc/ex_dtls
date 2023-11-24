@@ -145,7 +145,7 @@ gen_key_exit:
   return pkey;
 }
 
-X509 *gen_cert(EVP_PKEY *pkey) {
+X509 *gen_cert(EVP_PKEY *pkey, long not_before, long not_after) {
   X509 *x509 = X509_new();
   if (x509 == NULL) {
     DEBUG("Cannot create X509");
@@ -154,8 +154,8 @@ X509 *gen_cert(EVP_PKEY *pkey) {
 
   ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
 
-  if (X509_gmtime_adj(X509_get_notBefore(x509), -31536000L) == 0 ||
-      X509_gmtime_adj(X509_get_notAfter(x509), 31536000L) == 0) {
+  if (X509_gmtime_adj(X509_get_notBefore(x509), not_before) == 0 ||
+      X509_gmtime_adj(X509_get_notAfter(x509), not_after) == 0) {
     DEBUG("Cannot set cert time validity");
     return NULL;
   }

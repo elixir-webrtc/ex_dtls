@@ -1,1 +1,1 @@
-ExUnit.start(exclude: [long_running: true], capture_log: true)
+ExUnit.start(capture_log: true)
