@@ -44,9 +44,9 @@ defmodule ExDTLS do
   * `dtls_srtp` - `true` if DTLS-SRTP handshake should be performed or `false` if a normal one.
     Defaults to `false`.
   * `pkey` - private key to use in this SSL context. Must correspond to `cert`.
-    If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+    If both `pkey` and `cert` are not passed, `ExDTLS` will generate 2048-bit RSA key and certificate on its own.
   * `cert` - certificate to use in this SSL context. Must correspond to `pkey`.
-    If both `pkey` and `cert` are not passed `ExDTLS` will generate key and certificate on its own.
+    If both `pkey` and `cert` are not passed, `ExDTLS` will generate 2048-bit RSA key and certificate on its own.
   * `verify_peer` - `true` if peer's certificate should be verified.
     Default OpenSSL verification is performed except that:
       * self-signed certificates are also accepted
@@ -80,8 +80,12 @@ defmodule ExDTLS do
   @doc """
   Generates a new key/certificate pair.
 
+  This is always 2048-bit RSA key.
+
   `not_before` and `not_after` can be used to 
   specify certificate duration in seconds.
+  They have to fit into architecture-dependent integer size.
+  Defaults to (-1 year) - (+ 1 year).
 
   Returns DER representation in binary format.
   """
@@ -122,7 +126,7 @@ defmodule ExDTLS do
   end
 
   @doc """
-  Returns a digest of the DER representation of the X509 certificate.
+  Returns an SHA-256 digest of the DER representation of the X509 certificate.
   """
   @spec get_cert_fingerprint(binary()) :: binary()
   defdelegate get_cert_fingerprint(cert), to: Native
