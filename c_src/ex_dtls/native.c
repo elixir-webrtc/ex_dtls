@@ -164,13 +164,22 @@ UNIFEX_TERM get_cert(UnifexEnv *env, State *state) {
 UNIFEX_TERM get_peer_cert(UnifexEnv *env, State *state) {
   UNIFEX_TERM res_term;
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   X509 *x509 = SSL_get0_peer_certificate(state->ssl);
+#else
+  X509 *x509 = SSL_get_peer_certificate(state->ssl);
+#endif
 
   if (x509 != NULL) {
     UnifexPayload payload;
     cert_to_payload(env, x509, &payload);
     res_term = get_peer_cert_result(env, &payload);
     unifex_payload_release(&payload);
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    X509_free(x509)
+#endif
+
   } else {
     res_term = get_peer_cert_result_(env);
   }
