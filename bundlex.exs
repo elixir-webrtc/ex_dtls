@@ -12,7 +12,7 @@ defmodule ExDTLS.BundlexProject do
       native: [
         sources: ["native.c", "dtls.c", "dyn_buff.c"],
         deps: [unifex: :unifex],
-        pkg_configs: ["openssl"],
+        os_deps: [openssl: :pkg_config],
         libs: ["pthread"],
         interface: [:nif],
         # compiler_flags: ["-DEXDTLS_DEBUG"],
