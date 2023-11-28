@@ -128,12 +128,12 @@ exit:
   return res_term;
 }
 
-UNIFEX_TERM generate_key_cert(UnifexEnv *env, long not_before, long not_after) {
+UNIFEX_TERM generate_key_cert(UnifexEnv *env, int not_before, int not_after) {
   UnifexPayload pkey_payload;
   UnifexPayload cert_payload;
 
   EVP_PKEY *pkey = gen_key();
-  X509 *cert = gen_cert(pkey, not_before, not_after);
+  X509 *cert = gen_cert(pkey, (long)not_before, (long)not_after);
 
   pkey_to_payload(env, pkey, &pkey_payload);
   cert_to_payload(env, cert, &cert_payload);
@@ -177,7 +177,7 @@ UNIFEX_TERM get_peer_cert(UnifexEnv *env, State *state) {
     unifex_payload_release(&payload);
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    X509_free(x509)
+    X509_free(x509);
 #endif
 
   } else {

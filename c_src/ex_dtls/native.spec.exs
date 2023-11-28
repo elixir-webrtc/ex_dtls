@@ -9,7 +9,7 @@ spec init(mode :: atom, dtls_srtp :: bool, verify_peer :: bool) :: state
 spec init_from_key_cert(mode :: atom, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
        state
 
-spec generate_key_cert(not_before :: int64, not_after :: int64) :: {pkey :: payload, cert :: payload}
+spec generate_key_cert(not_before :: int, not_after :: int) :: {pkey :: payload, cert :: payload}
 
 spec get_pkey(state) :: payload
 
