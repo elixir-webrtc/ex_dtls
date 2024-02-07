@@ -181,7 +181,7 @@ UNIFEX_TERM get_peer_cert(UnifexEnv *env, State *state) {
 #endif
 
   } else {
-    res_term = get_peer_cert_result_(env);
+    res_term = get_peer_cert_result_nil(env);
   }
 
   return res_term;
