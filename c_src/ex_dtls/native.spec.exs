@@ -2,6 +2,8 @@ module ExDTLS.Native
 
 interface NIF
 
+callback :load
+
 state_type "State"
 
 spec init(mode :: atom, dtls_srtp :: bool, verify_peer :: bool) :: state
