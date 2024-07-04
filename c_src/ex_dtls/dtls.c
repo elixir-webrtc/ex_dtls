@@ -152,7 +152,7 @@ X509 *gen_cert(EVP_PKEY *pkey, long not_before, long not_after) {
     return NULL;
   }
 
-  ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
+  ASN1_INTEGER_set(X509_get_serialNumber(x509), (long)rand());
 
   if (X509_gmtime_adj(X509_get_notBefore(x509), not_before) == 0 ||
       X509_gmtime_adj(X509_get_notAfter(x509), not_after) == 0) {

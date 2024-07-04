@@ -22,6 +22,30 @@ UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 
+int handle_load(UnifexEnv *env, void **priv_data) {
+  UNIFEX_UNUSED(env);
+  UNIFEX_UNUSED(priv_data);
+
+  FILE *urandom = fopen("/dev/urandom", "r");
+  if (urandom == NULL) {
+    DEBUG("Cannot open /dev/urandom");
+    return -1;
+  }
+
+  unsigned int seed;
+  int bytes = fread(&seed, sizeof(unsigned int), 1, urandom);
+  if (bytes != 1) {
+    DEBUG("Cannot read random bytes from /dev/urandom");
+    return -1;
+  }
+
+  DEBUG("Random seed: %u\n", seed);
+
+  srand(seed);
+
+  return 0;
+}
+
 UNIFEX_TERM init(UnifexEnv *env, char *mode_str, int dtls_srtp,
                  int verify_peer) {
   UNIFEX_TERM res_term;

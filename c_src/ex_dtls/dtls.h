@@ -5,6 +5,7 @@
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 
