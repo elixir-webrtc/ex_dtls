@@ -280,7 +280,7 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
 
   BIO *wbio = SSL_get_wbio(state->ssl);
   size_t pending_data_len = BIO_ctrl_pending(wbio);
-  if (pending_data_len <= 0) {
+  if (pending_data_len == 0) {
     DEBUG("No data to read from BIO after writing");
     return unifex_raise(env, "No data to read from BIO after writing");
   }
