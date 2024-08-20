@@ -25,6 +25,8 @@ spec do_handshake(state) :: {packets :: payload, timeout :: int}
 
 spec handle_timeout(state) :: (:ok :: label) | {:retransmit :: label, packets :: payload, timeout :: int}
 
+spec write_data(state, packets :: payload) :: {:ok :: label, packets :: payload} | {:error :: label, :handshake_not_finished :: label}
+
 spec handle_data(state, packets :: payload) ::
        {:ok :: label, packets :: payload}
        | (:handshake_want_read :: label)

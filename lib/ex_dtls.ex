@@ -3,7 +3,7 @@ defmodule ExDTLS do
   Module that allows performing DTLS handshake including a DTLS-SRTP one.
 
   `ExDTLS` executes native OpenSSL functions to perform DTLS handshake.
-  It doesn't create or require any socket. 
+  It doesn't create or require any socket.
   Instead, it returns generated DTLS packets, which then have to be transported to the peer.
   """
 
@@ -82,7 +82,7 @@ defmodule ExDTLS do
 
   This is always 2048-bit RSA key.
 
-  `not_before` and `not_after` can be used to 
+  `not_before` and `not_after` can be used to
   specify certificate duration in seconds.
   They have to fit into architecture-dependent integer size.
   Defaults to (-1 year) - (+ 1 year).
@@ -111,7 +111,7 @@ defmodule ExDTLS do
   @doc """
   Gets peer certificate.
 
-  Returns DER representation in binary format or `nil` 
+  Returns DER representation in binary format or `nil`
   when no certificate was presented by the peer or no connection
   was established.
   """
@@ -143,13 +143,22 @@ defmodule ExDTLS do
   defdelegate do_handshake(dtls), to: Native
 
   @doc """
+  Writes data to the DTLS connection.
+
+  Generates encrypted packets that need to be passed to the second host.
+  """
+  @spec write_data(dtls(), packets :: binary()) ::
+          {:ok, packets :: binary()} | {:error, :handshake_not_finished}
+  defdelegate write_data(dtls, packets), to: Native
+
+  @doc """
   Handles peer's packets.
 
   When handshake is finished, calling `handle_data` will return `{:ok, binary()}`,
   which is decoded data.
 
   `:handshake_packets` contains handshake data that has to be sent to the peer.
-  `:handshake_want_read` means some additional data is needed for continuing handshake. 
+  `:handshake_want_read` means some additional data is needed for continuing handshake.
   It can be returned when retransmitted packet was passed but timer didn't expired yet.
   `timeout` is a time in ms after which `handle_timeout/1` should be called.
 

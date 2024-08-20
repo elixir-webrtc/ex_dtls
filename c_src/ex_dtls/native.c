@@ -266,6 +266,41 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
   return unifex_raise(state->env, "Handshake failed: no packets generated");
 }
 
+UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
+  if (state->hsk_finished != 1) {
+    DEBUG("Cannot write, handshake not finished");
+    return write_data_result_error_handshake_not_finished(env);
+  }
+
+  int ret = SSL_write(state->ssl, payload->data, payload->size);
+  if (ret <= 0) {
+    DEBUG("Unable to write data");
+    return unifex_raise(env, "Unable to write data");
+  }
+
+  BIO *wbio = SSL_get_wbio(state->ssl);
+  size_t pending_data_len = BIO_ctrl_pending(wbio);
+  if (pending_data_len == 0) {
+    DEBUG("No data to read from BIO after writing");
+    return unifex_raise(env, "No data to read from BIO after writing");
+  }
+
+  UnifexPayload res_payload;
+  unifex_payload_alloc(env, UNIFEX_PAYLOAD_BINARY, pending_data_len, &res_payload);
+
+  int read_bytes = BIO_read(wbio, res_payload.data, pending_data_len);
+  if (read_bytes <= 0 || (size_t) read_bytes != pending_data_len) {
+    DEBUG("Unable to read data from BIO after writing");
+    return unifex_raise(env, "Unable to read data from BIO after writing");
+  }
+
+  DEBUG("Wrote %d bytes of data", read_bytes);
+  res_payload.size = (unsigned int) pending_data_len;
+  UNIFEX_TERM res_term = write_data_result_ok(env, &res_payload);
+  unifex_payload_release(&res_payload);
+  return res_term;
+}
+
 UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   (void)env;
 
