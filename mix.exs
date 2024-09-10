@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.15.2"
+  @version "0.16.0"
   @github_url "https://github.com/elixir-webrtc/ex_dtls"
 
   def project do
@@ -16,7 +16,7 @@ defmodule ExDTLS.Mixfile do
       dialyzer: dialyzer(),
 
       # hex
-      description: "Elixir wrapper over OpenSSL for performing DTLS handshake",
+      description: "DTLS and DTLS-SRTP library for Elixir, based on OpenSSL.",
       package: package(),
 
       # docs

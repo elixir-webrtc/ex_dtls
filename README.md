@@ -5,13 +5,14 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/elixir-webrtc/ex_dtls/ci.yml?logo=github&label=CI)](https://github.com/elixir-webrtc/ex_dtls/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/elixir-webrtc/ex_dtls/graph/badge.svg?token=E98NHC8B00)](https://codecov.io/gh/elixir-webrtc/ex_dtls)
 
-DTLS and DTLS-SRTP handshake library for Elixir, based on [OpenSSL].
+DTLS and DTLS-SRTP library for Elixir, based on [OpenSSL].
 
-`ExDTLS` allows a user to perform DTLS handshake (including DTLS-SRTP one) without requiring
-any socket. 
+`ExDTLS` allows a user to perform DTLS handshake (including DTLS-SRTP one)
+without requiring any socket.
 Instead, it generates DTLS packets that a user has to transport to the peer.
 Thanks to this DTLS handshake can be performed on the third-party socket e.g. one used to
 establish a connection via ICE protocol.
+Starting from v0.16.0, `ExDTLS` can also be used to send arbitrary data using DTLS datagrams, see `ExDTLS.write_data/2`.
 
 ## Installation
 
@@ -20,7 +21,7 @@ The package can be installed by adding `ex_dtls` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:ex_dtls, "~> 0.15.2"}
+    {:ex_dtls, "~> 0.16.0"}
   ]
 end
 ```
@@ -33,8 +34,8 @@ Make sure you have it installed on your OS.
 Init `ExDTLS` on both peers with:
 
 ```elixir
-# One peer should be a client (use `mode: :client`) and the other 
-# one a server (use `mode: :server`). 
+# One peer should be a client (use `mode: :client`) and the other
+# one a server (use `mode: :server`).
 # DTLS-SRTP is the most common use case for ExDTLS, we'll enable it.
 dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 ```
@@ -58,7 +59,7 @@ After receiving initial DTLS packets on the second peer pass them to `ExDTLS`:
 As a result, we will also get some new packets that have to be passed to the first peer.
 
 After some back and forth DTLS handshake should be finished successfully.
-The peer that finishes the handshake first will return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, packets}` tuple. 
+The peer that finishes the handshake first will return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile, packets}` tuple.
 These packets have to be sent to the second peer, so it can finish its handshake too and
 return `{:handshake_finished, local_keying_material, remote_keying_material, protection_profile}` tuple.
 
