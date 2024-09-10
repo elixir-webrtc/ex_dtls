@@ -12,6 +12,7 @@ without requiring any socket.
 Instead, it generates DTLS packets that a user has to transport to the peer.
 Thanks to this DTLS handshake can be performed on the third-party socket e.g. one used to
 establish a connection via ICE protocol.
+
 Starting from v0.16.0, `ExDTLS` can also be used to send arbitrary data using DTLS datagrams, see `ExDTLS.write_data/2`.
 
 ## Installation
