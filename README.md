@@ -30,11 +30,19 @@ end
 Please note that `ex_dtls` uses OpenSSL under the hood.
 We use `pkg-config` to search for include and lib files so you must make sure
 that `openssl.pc` file is searchable by `pkg-config`.
-If it is not in the default `pkg-config` search path, locate your `openssl.pc` and add its parent directory to the `PKG_CONFIG_PATH`.
+If it is not in the default `pkg-config` search path, locate your `openssl.pc`
+and add its parent directory to the `PKG_CONFIG_PATH`.
 For example:
 
 ```sh
- export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/homebrew/Cellar/openssl@3/3.1.0/lib/pkgconfig
+export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/homebrew/Cellar/openssl@3/3.1.0/lib/pkgconfig
+```
+
+If OpenSSL was installed using `brew`, you can use the following syntax
+to make sure that the path will still be correct after OpenSSL update:
+
+```sh
+export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$(brew --prefix openssl@3)/lib/pkgconfig
 ```
 
 ## Usage
