@@ -1,6 +1,7 @@
 defmodule ExDTLS.IntegrationTest do
   use ExUnit.Case, async: true
 
+  @tag :debug
   test "dtls_srtp" do
     rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)

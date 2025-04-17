@@ -1,5 +1,7 @@
 #include "dtls.h"
 
+#include "bio_frag.h"
+
 SSL_CTX *create_ctx(int dtls_srtp) {
   SSL_CTX *ssl_ctx = SSL_CTX_new(DTLS_method());
   if (ssl_ctx == NULL) {
@@ -33,19 +35,33 @@ SSL *create_ssl(SSL_CTX *ssl_ctx, int mode) {
     return NULL;
   }
 
-  BIO *rbio = BIO_new(BIO_s_mem());
-  if (rbio == NULL) {
-    DEBUG("Cannot create rbio");
+  BIO *frag_bio = BIO_new(BIO_f_frag());
+  if (frag_bio == NULL) {
+    DEBUG("Cannot create frag bio");
     return NULL;
   }
 
-  BIO *wbio = BIO_new(BIO_s_mem());
-  if (wbio == NULL) {
-    DEBUG("Cannot create wbio");
+  BIO *wmem_bio = BIO_new(BIO_s_mem());
+  if (wmem_bio == NULL) {
+    DEBUG("Cannot create write mem bio");
     return NULL;
   }
 
-  SSL_set_bio(ssl, rbio, wbio);
+  BIO *wchain = BIO_push(frag_bio, wmem_bio);
+
+  BIO *rmem_bio = BIO_new(BIO_s_mem());
+  if (rmem_bio == NULL) {
+    DEBUG("Cannot create read mem bio");
+    return NULL;
+  }
+
+  SSL_set_bio(ssl, rmem_bio, wchain);
+  
+  // printf("Setting MTU to 1000\n");
+  // if (SSL_set_mtu(ssl, 1500) == 0) {
+  //   return NULL;
+  // } 
+  
 
   return ssl;
 }
