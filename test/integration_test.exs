@@ -68,7 +68,7 @@ defmodule ExDTLS.IntegrationTest do
   end
 
   defp loop({dtls1, state1}, {dtls2, state2}, packets) do
-    case ExDTLS.handle_data(dtls1, packets) do
+    case feed_packets(dtls1, packets) do
       {:handshake_packets, packets, _timeout} ->
         loop({dtls2, state2}, {dtls1, state1}, packets)
 
@@ -77,6 +77,13 @@ defmodule ExDTLS.IntegrationTest do
 
       {:handshake_finished, _lkm, _rkm, _p} ->
         loop({dtls2, state2}, {dtls1, true}, packets)
+    end
+  end
+
+  defp feed_packets(dtls, [packet | packets]) do
+    case ExDTLS.handle_data(dtls, packet) do
+      :handshake_want_read -> feed_packets(dtls, packets)
+      other when packets == [] -> other
     end
   end
 end
