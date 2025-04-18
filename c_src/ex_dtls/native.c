@@ -540,10 +540,14 @@ static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len) {
   itr = dgram_list;
   struct Datagram *next = dgram_list->next;
 
-  while (next != NULL) {
+  if (next == NULL) {
     free(itr);
-    itr = next;
-    next = itr->next;
+  } else {
+    while (next != NULL) {
+      free(itr);
+      itr = next;
+      next = itr->next;
+    }
   }
 
   return payloads;
@@ -569,8 +573,31 @@ static void read_pending_data(UnifexPayload ***payloads, int *size,
     int read_bytes = BIO_read(wbio, payload->data, pending_data_len);
     if (read_bytes <= 0) {
       DEBUG("WBIO: read error");
-      // TODO cleanup
+      free(dgram);
+      unifex_payload_release(payload);
+      free(payload);
+
+      struct Datagram *ptr = dgram_list;
+
+      if (ptr != NULL) {
+        if (ptr->next == NULL) {
+          unifex_payload_release(ptr->packet);
+          free(ptr->packet);
+          free(ptr);
+        } else {
+          struct Datagram *next = ptr->next;
+          while (next != NULL) {
+            unifex_payload_release(ptr->packet);
+            free(ptr->packet);
+            free(ptr);
+            ptr = next;
+            next = ptr->next;
+          }
+        }
+      }
+
       *size = 0;
+      *payloads = NULL;
       return;
     } else {
       DEBUG("WBIO: read: %d bytes", read_bytes);
