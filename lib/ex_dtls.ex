@@ -139,7 +139,7 @@ defmodule ExDTLS do
 
   `timeout` is a time in ms after which `handle_timeout/1` should be called.
   """
-  @spec do_handshake(dtls()) :: {packets :: binary(), timeout :: integer()}
+  @spec do_handshake(dtls()) :: {packets :: [binary()], timeout :: integer()}
   defdelegate do_handshake(dtls), to: Native
 
   @doc """
@@ -147,9 +147,9 @@ defmodule ExDTLS do
 
   Generates encrypted packets that need to be passed to the second host.
   """
-  @spec write_data(dtls(), packets :: binary()) ::
-          {:ok, packets :: binary()} | {:error, :handshake_not_finished}
-  defdelegate write_data(dtls, packets), to: Native
+  @spec write_data(dtls(), data :: binary()) ::
+          {:ok, packets :: [binary()]} | {:error, :handshake_not_finished}
+  defdelegate write_data(dtls, data), to: Native
 
   @doc """
   Handles peer's packets.
@@ -164,12 +164,12 @@ defmodule ExDTLS do
 
   Both local and remote keying materials consist of `master key` and `master salt`.
   """
-  @spec handle_data(dtls(), packets :: binary()) ::
+  @spec handle_data(dtls(), data :: binary()) ::
           {:ok, packets :: binary()}
           | :handshake_want_read
-          | {:handshake_packets, packets :: binary(), timeout :: integer()}
+          | {:handshake_packets, packets :: [binary()], timeout :: integer()}
           | {:handshake_finished, local_keying_material :: binary(),
-             remote_keying_material :: binary(), protection_profile_t(), packets :: binary()}
+             remote_keying_material :: binary(), protection_profile_t(), packets :: [binary()]}
           | {:handshake_finished, local_keying_material :: binary(),
              remote_keying_material :: binary(), protection_profile_t()}
           | {:error, :handshake_error | :peer_closed_for_writing}
@@ -192,6 +192,6 @@ defmodule ExDTLS do
 
   If there is no timeout to handle, simple `{:ok, dtls()}` tuple is returned.
   """
-  @spec handle_timeout(dtls()) :: :ok | {:retransmit, packets :: binary(), timeout :: integer()}
+  @spec handle_timeout(dtls()) :: :ok | {:retransmit, packets :: [binary()], timeout :: integer()}
   defdelegate handle_timeout(dtls), to: Native
 end
