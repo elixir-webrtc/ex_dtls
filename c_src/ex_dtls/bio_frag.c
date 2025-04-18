@@ -12,6 +12,7 @@ static long callback_ctrl(BIO *bio, int cmd, BIO_info_cb *fp);
 static BIO_METHOD *bio_methods = NULL;
 
 #define MAX_FRAGS 100
+#define MTU 1200
 
 struct Ctx {
   int frag_sizes[MAX_FRAGS];
@@ -124,6 +125,8 @@ static long ctrl(BIO *bio, int cmd, long num, void *ptr) {
 
   if (cmd == BIO_CTRL_PENDING) {
     return ctx->frag_sizes[ctx->riter];
+  } else if (cmd == BIO_CTRL_DGRAM_QUERY_MTU) {
+    return MTU;
   }
 
   return BIO_ctrl(next, cmd, num, ptr);
