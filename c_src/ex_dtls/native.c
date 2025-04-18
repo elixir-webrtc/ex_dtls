@@ -14,8 +14,8 @@ struct Datagram {
 
 static void ssl_info_cb(const SSL *ssl, int where, int ret);
 static int verify_cb(int preverify_ok, X509_STORE_CTX *ctx);
-static void read_pending_data(UnifexPayload ***payloads, int *size,
-                              State *state);
+static int read_pending_data(UnifexPayload ***payloads, int *size,
+                             State *state);
 static void cert_to_payload(UnifexEnv *env, X509 *x509, UnifexPayload *payload);
 static void pkey_to_payload(UnifexEnv *env, EVP_PKEY *pkey,
                             UnifexPayload *payload);
@@ -245,27 +245,23 @@ exit:
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
   SSL_do_handshake(state->ssl);
 
-  size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
-  if (pending_data_len > 0) {
-    DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+  UnifexPayload **gen_packets;
+  int gen_packets_size;
+  int ret = read_pending_data(&gen_packets, &gen_packets_size, state);
 
-    UnifexPayload **gen_packets;
-    int gen_packets_size;
-    read_pending_data(&gen_packets, &gen_packets_size, state);
+  if (ret == 0 && (gen_packets == NULL || gen_packets_size == 0)) {
+    return unifex_raise(state->env, "Handshake failed: no packets generated");
+  } else if (ret < 0) {
+    return unifex_raise(state->env,
+                        "Handshake failed: couldn't read pending data");
+  } else {
+    int timeout = get_timeout(state->ssl);
+    UNIFEX_TERM res_term =
+        do_handshake_result(env, gen_packets, gen_packets_size, timeout);
+    free_payload_array(gen_packets, gen_packets_size);
 
-    if (gen_packets == NULL) {
-      return unifex_raise(state->env, "Handshake failed: write BIO error");
-    } else {
-      int timeout = get_timeout(state->ssl);
-      UNIFEX_TERM res_term =
-          do_handshake_result(env, gen_packets, gen_packets_size, timeout);
-      free_payload_array(gen_packets, gen_packets_size);
-
-      return res_term;
-    }
+    return res_term;
   }
-
-  return unifex_raise(state->env, "Handshake failed: no packets generated");
 }
 
 UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
@@ -290,7 +286,7 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   UnifexPayload **gen_packets = NULL;
   int gen_packets_size = 0;
   read_pending_data(&gen_packets, &gen_packets_size, state);
-  if (gen_packets == NULL) {
+  if (gen_packets == NULL || gen_packets_size == 0) {
     DEBUG("Unable to read data from BIO after writing");
     return unifex_raise(env, "Unable to read data from BIO after writing");
   }
@@ -394,16 +390,12 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
   memcpy(server_keying_material.data, keying_material->server, len);
   server_keying_material.size = len;
 
-  size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
-  DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
-
-  if (pending_data_len > 0) {
-    read_pending_data(&gen_packets, &gen_packets_size, state);
-    if (gen_packets == NULL) {
-      res_term = unifex_raise(state->env, "Handshake failed: write BIO error");
-      goto cleanup;
-    }
+  int ret = read_pending_data(&gen_packets, &gen_packets_size, state);
+  if (ret < 0) {
+    res_term = unifex_raise(state->env, "Handshake failed: write BIO error");
+    goto cleanup;
   }
+
   state->hsk_finished = 1;
 
   UnifexPayload *local_keying_material;
@@ -422,9 +414,7 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
       keying_material->protection_profile, gen_packets, gen_packets_size);
 
 cleanup:
-
   free_payload_array(gen_packets, gen_packets_size);
-
   unifex_payload_release(&client_keying_material);
   unifex_payload_release(&server_keying_material);
   return res_term;
@@ -435,16 +425,15 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
   switch (ssl_error) {
   case SSL_ERROR_WANT_READ:
     DEBUG("SSL WANT READ");
-    size_t pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl));
-    DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
+    UnifexPayload **gen_packets = NULL;
+    int gen_packets_size = 0;
+    int read_err = read_pending_data(&gen_packets, &gen_packets_size, state);
 
-    if (pending_data_len > 0) {
-      UnifexPayload **gen_packets = NULL;
-      int gen_packets_size = 0;
-      read_pending_data(&gen_packets, &gen_packets_size, state);
-      if (gen_packets == NULL) {
-        return unifex_raise(state->env, "Handshake failed: write BIO error");
-      }
+    if (read_err < 0) {
+      return unifex_raise(state->env, "Handshake failed: write BIO error");
+    } else if (read_err == 0 && gen_packets_size == 0) {
+      return handle_data_result_handshake_want_read(state->env);
+    } else {
       int timeout = get_timeout(state->ssl);
       UNIFEX_TERM res_term = handle_data_result_handshake_packets(
           state->env, gen_packets, gen_packets_size, timeout);
@@ -452,8 +441,6 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
       free_payload_array(gen_packets, gen_packets_size);
 
       return res_term;
-    } else {
-      return handle_data_result_handshake_want_read(state->env);
     }
   default:
     return handle_read_error(state, ret);
@@ -469,7 +456,7 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
   int gen_packets_size = 0;
   read_pending_data(&gen_packets, &gen_packets_size, state);
 
-  if (gen_packets == NULL) {
+  if (gen_packets == NULL || gen_packets_size == 0) {
     return unifex_raise(state->env,
                         "Retransmit handshake failed: write BIO error");
   } else {
@@ -517,21 +504,14 @@ static int verify_cb(int preverify_ok, X509_STORE_CTX *ctx) {
 }
 
 static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len) {
+  if (len == 0) {
+    return NULL;
+  }
 
   UnifexPayload **payloads = calloc(len, sizeof(UnifexPayload *));
 
-  for (int i = 0; i < len; i++) {
-    DEBUG("%d", i);
-    payloads[i] = NULL;
-  }
-
   struct Datagram *itr = dgram_list;
 
-  for (int i = 0; i < len; i++) {
-    itr = itr->next;
-  }
-
-  itr = dgram_list;
   for (int i = 0; i < len; i++) {
     payloads[i] = itr->packet;
     itr = itr->next;
@@ -553,8 +533,8 @@ static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len) {
   return payloads;
 }
 
-static void read_pending_data(UnifexPayload ***payloads, int *size,
-                              State *state) {
+static int read_pending_data(UnifexPayload ***payloads, int *size,
+                             State *state) {
 
   struct Datagram *dgram_list = NULL;
   struct Datagram *itr = NULL;
@@ -562,6 +542,7 @@ static void read_pending_data(UnifexPayload ***payloads, int *size,
 
   size_t pending_data_len = 0;
   while ((pending_data_len = BIO_ctrl_pending(SSL_get_wbio(state->ssl))) > 0) {
+    DEBUG("WBIO: pending data: %ld bytes", pending_data_len);
     struct Datagram *dgram = calloc(1, sizeof(struct Datagram));
     UnifexPayload *payload = calloc(1, sizeof(UnifexPayload));
     unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, pending_data_len,
@@ -598,7 +579,7 @@ static void read_pending_data(UnifexPayload ***payloads, int *size,
 
       *size = 0;
       *payloads = NULL;
-      return;
+      return -1;
     } else {
       DEBUG("WBIO: read: %d bytes", read_bytes);
       dgram->packet->size = (unsigned int)pending_data_len;
@@ -616,6 +597,7 @@ static void read_pending_data(UnifexPayload ***payloads, int *size,
   }
 
   *payloads = to_payload_array(dgram_list, *size);
+  return 0;
 }
 
 static void cert_to_payload(UnifexEnv *env, X509 *x509,
@@ -637,6 +619,10 @@ static void pkey_to_payload(UnifexEnv *env, EVP_PKEY *pkey,
 }
 
 static void free_payload_array(UnifexPayload **payloads, int len) {
+  if (payloads == NULL) {
+    return;
+  }
+
   for (int i = 0; i < len; i++) {
     unifex_payload_release(payloads[i]);
     free(payloads[i]);
