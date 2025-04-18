@@ -331,13 +331,12 @@ UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
 
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
   if (ret > 0) {
-    UnifexPayload **packets = calloc(1, sizeof(UnifexPayload *));
-    packets[0] = calloc(1, sizeof(UnifexPayload));
-    unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, ret, packets[0]);
-    memcpy(packets[0]->data, data, ret);
-    packets[0]->size = (unsigned int)ret;
-    UNIFEX_TERM res_term = handle_data_result_ok(state->env, packets, 1);
-    free_payload_array(packets, 1);
+    UnifexPayload packets;
+    unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, ret, &packets);
+    memcpy(packets.data, data, ret);
+    packets.size = (unsigned int)ret;
+    UNIFEX_TERM res_term = handle_data_result_ok(state->env, &packets);
+    unifex_payload_release(&packets);
     return res_term;
   }
 

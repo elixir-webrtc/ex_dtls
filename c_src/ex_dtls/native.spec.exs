@@ -28,7 +28,7 @@ spec handle_timeout(state) :: (:ok :: label) | {:retransmit :: label, packets ::
 spec write_data(state, packets :: payload) :: {:ok :: label, packets :: [payload]} | {:error :: label, :handshake_not_finished :: label}
 
 spec handle_data(state, packets :: payload) ::
-       {:ok :: label, packets :: [payload]}
+       {:ok :: label, packets :: payload}
        | (:handshake_want_read :: label)
        | {:handshake_packets :: label, packets :: [payload], timeout :: int}
        | {:handshake_finished :: label, client_keying_material :: payload,

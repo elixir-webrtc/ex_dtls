@@ -175,7 +175,7 @@ defmodule ExDTLS do
           | {:error, :handshake_error | :peer_closed_for_writing}
   def handle_data(dtls, packets) do
     case Native.handle_data(dtls, packets) do
-      {:handshake_finished, lkm, rkm, protection_profile, <<>>} ->
+      {:handshake_finished, lkm, rkm, protection_profile, []} ->
         {:handshake_finished, lkm, rkm, protection_profile}
 
       other ->
