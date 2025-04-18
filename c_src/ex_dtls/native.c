@@ -26,12 +26,18 @@ UNIFEX_TERM handle_regular_read(State *state, char data[], int ret);
 UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
-static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len);
+static UnifexPayload **dgram_to_payload_array(struct Datagram *dgram_list,
+                                              int len);
 static void free_payload_array(UnifexPayload **payloads, int len);
 
 int handle_load(UnifexEnv *env, void **priv_data) {
   UNIFEX_UNUSED(env);
   UNIFEX_UNUSED(priv_data);
+
+  if (OPENSSL_VERSION_NUMBER < 0x30000000L) {
+    DEBUG("ExDTLS requires OpenSSL 3");
+    return -1;
+  }
 
   FILE *urandom = fopen("/dev/urandom", "r");
   if (urandom == NULL) {
@@ -245,11 +251,11 @@ exit:
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
   SSL_do_handshake(state->ssl);
 
-  UnifexPayload **gen_packets;
-  int gen_packets_size;
+  UnifexPayload **gen_packets = NULL;
+  int gen_packets_size = 0;
   int ret = read_pending_data(&gen_packets, &gen_packets_size, state);
 
-  if (ret == 0 && (gen_packets == NULL || gen_packets_size == 0)) {
+  if (ret == 0 && gen_packets == NULL) {
     return unifex_raise(state->env, "Handshake failed: no packets generated");
   } else if (ret < 0) {
     return unifex_raise(state->env,
@@ -276,6 +282,8 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
     return unifex_raise(env, "Unable to write data");
   }
 
+  DEBUG("Wrote %d bytes of data", ret);
+
   BIO *wbio = SSL_get_wbio(state->ssl);
   size_t pending_data_len = BIO_ctrl_pending(wbio);
   if (pending_data_len == 0) {
@@ -286,9 +294,9 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   UnifexPayload **gen_packets = NULL;
   int gen_packets_size = 0;
   read_pending_data(&gen_packets, &gen_packets_size, state);
-  if (gen_packets == NULL || gen_packets_size == 0) {
-    DEBUG("Unable to read data from BIO after writing");
-    return unifex_raise(env, "Unable to read data from BIO after writing");
+  if (gen_packets == NULL) {
+    DEBUG("Couldn't read pending data after writing");
+    return unifex_raise(env, "Couldn't read pending data after writing");
   }
 
   UNIFEX_TERM res_term =
@@ -391,7 +399,8 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
 
   int ret = read_pending_data(&gen_packets, &gen_packets_size, state);
   if (ret < 0) {
-    res_term = unifex_raise(state->env, "Handshake failed: write BIO error");
+    res_term = unifex_raise(state->env,
+                            "Handshake failed: couldn't read pending data.");
     goto cleanup;
   }
 
@@ -429,8 +438,9 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
     int read_err = read_pending_data(&gen_packets, &gen_packets_size, state);
 
     if (read_err < 0) {
-      return unifex_raise(state->env, "Handshake failed: write BIO error");
-    } else if (read_err == 0 && gen_packets_size == 0) {
+      return unifex_raise(state->env,
+                          "Handshake failed: couldn't read pending data");
+    } else if (read_err == 0 && gen_packets == NULL) {
       return handle_data_result_handshake_want_read(state->env);
     } else {
       int timeout = get_timeout(state->ssl);
@@ -455,9 +465,9 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
   int gen_packets_size = 0;
   read_pending_data(&gen_packets, &gen_packets_size, state);
 
-  if (gen_packets == NULL || gen_packets_size == 0) {
-    return unifex_raise(state->env,
-                        "Retransmit handshake failed: write BIO error");
+  if (gen_packets == NULL) {
+    return unifex_raise(
+        state->env, "Retransmit handshake failed: couldn't read pending data");
   } else {
     int timeout = get_timeout(state->ssl);
     UNIFEX_TERM res_term = handle_timeout_result_retransmit(
@@ -500,36 +510,6 @@ static int verify_cb(int preverify_ok, X509_STORE_CTX *ctx) {
   } else {
     return preverify_ok;
   }
-}
-
-static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len) {
-  if (len == 0) {
-    return NULL;
-  }
-
-  UnifexPayload **payloads = calloc(len, sizeof(UnifexPayload *));
-
-  struct Datagram *itr = dgram_list;
-
-  for (int i = 0; i < len; i++) {
-    payloads[i] = itr->packet;
-    itr = itr->next;
-  }
-
-  itr = dgram_list;
-  struct Datagram *next = dgram_list->next;
-
-  if (next == NULL) {
-    free(itr);
-  } else {
-    while (next != NULL) {
-      free(itr);
-      itr = next;
-      next = itr->next;
-    }
-  }
-
-  return payloads;
 }
 
 static int read_pending_data(UnifexPayload ***payloads, int *size,
@@ -595,8 +575,51 @@ static int read_pending_data(UnifexPayload ***payloads, int *size,
     (*size)++;
   }
 
-  *payloads = to_payload_array(dgram_list, *size);
+  *payloads = dgram_to_payload_array(dgram_list, *size);
   return 0;
+}
+
+static UnifexPayload **dgram_to_payload_array(struct Datagram *dgram_list,
+                                              int len) {
+  if (len == 0) {
+    return NULL;
+  }
+
+  UnifexPayload **payloads = calloc(len, sizeof(UnifexPayload *));
+
+  struct Datagram *itr = dgram_list;
+
+  for (int i = 0; i < len; i++) {
+    payloads[i] = itr->packet;
+    itr = itr->next;
+  }
+
+  itr = dgram_list;
+  struct Datagram *next = dgram_list->next;
+
+  if (next == NULL) {
+    free(itr);
+  } else {
+    while (next != NULL) {
+      free(itr);
+      itr = next;
+      next = itr->next;
+    }
+  }
+
+  return payloads;
+}
+
+static void free_payload_array(UnifexPayload **payloads, int len) {
+  if (payloads == NULL) {
+    return;
+  }
+
+  for (int i = 0; i < len; i++) {
+    unifex_payload_release(payloads[i]);
+    free(payloads[i]);
+  }
+  free(payloads);
 }
 
 static void cert_to_payload(UnifexEnv *env, X509 *x509,
@@ -615,18 +638,6 @@ static void pkey_to_payload(UnifexEnv *env, EVP_PKEY *pkey,
   unsigned char *p = payload->data;
   i2d_PrivateKey(pkey, &p);
   payload->size = len;
-}
-
-static void free_payload_array(UnifexPayload **payloads, int len) {
-  if (payloads == NULL) {
-    return;
-  }
-
-  for (int i = 0; i < len; i++) {
-    unifex_payload_release(payloads[i]);
-    free(payloads[i]);
-  }
-  free(payloads);
 }
 
 void handle_destroy_state(UnifexEnv *env, State *state) {
