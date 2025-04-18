@@ -27,6 +27,7 @@ UNIFEX_TERM handle_read_error(State *state, int ret);
 UNIFEX_TERM handle_handshake_in_progress(State *state, int ret);
 UNIFEX_TERM handle_handshake_finished(State *state);
 static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len);
+static void free_payload_array(UnifexPayload **payloads, int len);
 
 int handle_load(UnifexEnv *env, void **priv_data) {
   UNIFEX_UNUSED(env);
@@ -258,9 +259,8 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
       int timeout = get_timeout(state->ssl);
       UNIFEX_TERM res_term =
           do_handshake_result(env, gen_packets, gen_packets_size, timeout);
-      for (int i = 0; i < gen_packets_size; i++) {
-        unifex_payload_release(gen_packets[i]);
-      }
+      free_payload_array(gen_packets, gen_packets_size);
+
       return res_term;
     }
   }
@@ -298,9 +298,7 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   UNIFEX_TERM res_term =
       write_data_result_ok(env, gen_packets, gen_packets_size);
 
-  for (int i = 0; i < gen_packets_size; i++) {
-    unifex_payload_release(gen_packets[i]);
-  }
+  free_payload_array(gen_packets, gen_packets_size);
 
   return res_term;
 }
@@ -338,13 +336,12 @@ UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
 UNIFEX_TERM handle_regular_read(State *state, char data[], int ret) {
   if (ret > 0) {
     UnifexPayload **packets = calloc(1, sizeof(UnifexPayload *));
-    UnifexPayload packet;
-    packets[0] = &packet;
+    packets[0] = calloc(1, sizeof(UnifexPayload));
     unifex_payload_alloc(state->env, UNIFEX_PAYLOAD_BINARY, ret, packets[0]);
     memcpy(packets[0]->data, data, ret);
     packets[0]->size = (unsigned int)ret;
     UNIFEX_TERM res_term = handle_data_result_ok(state->env, packets, 1);
-    unifex_payload_release(packets[0]);
+    free_payload_array(packets, 1);
     return res_term;
   }
 
@@ -426,9 +423,7 @@ UNIFEX_TERM handle_handshake_finished(State *state) {
 
 cleanup:
 
-  for (int i = 0; i < gen_packets_size; i++) {
-    unifex_payload_release(gen_packets[i]);
-  }
+  free_payload_array(gen_packets, gen_packets_size);
 
   unifex_payload_release(&client_keying_material);
   unifex_payload_release(&server_keying_material);
@@ -454,9 +449,7 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
       UNIFEX_TERM res_term = handle_data_result_handshake_packets(
           state->env, gen_packets, gen_packets_size, timeout);
 
-      for (int i = 0; i < gen_packets_size; i++) {
-        unifex_payload_release(gen_packets[i]);
-      }
+      free_payload_array(gen_packets, gen_packets_size);
 
       return res_term;
     } else {
@@ -483,11 +476,7 @@ UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
     int timeout = get_timeout(state->ssl);
     UNIFEX_TERM res_term = handle_timeout_result_retransmit(
         env, gen_packets, gen_packets_size, timeout);
-
-    for (int i = 0; i < gen_packets_size; i++) {
-      unifex_payload_release(gen_packets[i]);
-    }
-
+    free_payload_array(gen_packets, gen_packets_size);
     return res_term;
   }
 }
@@ -539,28 +528,23 @@ static UnifexPayload **to_payload_array(struct Datagram *dgram_list, int len) {
   struct Datagram *itr = dgram_list;
 
   for (int i = 0; i < len; i++) {
-    DEBUG("size, %d", itr->packet->size);
     itr = itr->next;
   }
 
   itr = dgram_list;
   for (int i = 0; i < len; i++) {
-    DEBUG("to payload array 3, %d", len);
     payloads[i] = itr->packet;
     itr = itr->next;
   }
 
-  DEBUG("to payload array");
+  itr = dgram_list;
+  struct Datagram *next = dgram_list->next;
 
-  // itr = dgram_list;
-  // struct Datagram *next = dgram_list->next;
-
-  // for (int i = 0; i < len; i++) {
-  //   free(itr);
-  //   itr = next;
-  //   next = itr->next;
-  //   DEBUG("dupa2");
-  // }
+  while (next != NULL) {
+    free(itr);
+    itr = next;
+    next = itr->next;
+  }
 
   return payloads;
 }
@@ -623,6 +607,14 @@ static void pkey_to_payload(UnifexEnv *env, EVP_PKEY *pkey,
   unsigned char *p = payload->data;
   i2d_PrivateKey(pkey, &p);
   payload->size = len;
+}
+
+static void free_payload_array(UnifexPayload **payloads, int len) {
+  for (int i = 0; i < len; i++) {
+    unifex_payload_release(payloads[i]);
+    free(payloads[i]);
+  }
+  free(payloads);
 }
 
 void handle_destroy_state(UnifexEnv *env, State *state) {
