@@ -34,11 +34,6 @@ int handle_load(UnifexEnv *env, void **priv_data) {
   UNIFEX_UNUSED(env);
   UNIFEX_UNUSED(priv_data);
 
-  if (OPENSSL_VERSION_NUMBER < 0x30000000L) {
-    DEBUG("ExDTLS requires OpenSSL 3");
-    return -1;
-  }
-
   FILE *urandom = fopen("/dev/urandom", "r");
   if (urandom == NULL) {
     DEBUG("Cannot open /dev/urandom");
