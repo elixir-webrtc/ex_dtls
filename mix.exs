@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.16.0"
+  @version "0.17.0"
   @github_url "https://github.com/elixir-webrtc/ex_dtls"
 
   def project do
