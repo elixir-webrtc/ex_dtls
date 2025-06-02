@@ -108,6 +108,7 @@ UNIFEX_TERM do_init(UnifexEnv *env, char *mode_str, int dtls_srtp,
   state->x509 = NULL;
   state->mode = 0;
   state->hsk_finished = 0;
+  state->closed = 0;
   state->env = unifex_alloc_env(env);
 
   int mode;
@@ -244,6 +245,10 @@ exit:
 }
 
 UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
+  if (state->closed == 1) {
+    return do_handshake_result_error_closed(env);
+  }
+
   SSL_do_handshake(state->ssl);
 
   UnifexPayload **gen_packets = NULL;
@@ -258,7 +263,7 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
   } else {
     int timeout = get_timeout(state->ssl);
     UNIFEX_TERM res_term =
-        do_handshake_result(env, gen_packets, gen_packets_size, timeout);
+        do_handshake_result_ok(env, gen_packets, gen_packets_size, timeout);
     free_payload_array(gen_packets, gen_packets_size);
 
     return res_term;
@@ -266,6 +271,11 @@ UNIFEX_TERM do_handshake(UnifexEnv *env, State *state) {
 }
 
 UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
+  if (state->closed == 1) {
+    DEBUG("Cannot write, connection closed");
+    return write_data_result_error_closed(env);
+  }
+
   if (state->hsk_finished != 1) {
     DEBUG("Cannot write, handshake not finished");
     return write_data_result_error_handshake_not_finished(env);
@@ -303,6 +313,10 @@ UNIFEX_TERM write_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
 }
 
 UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
+  if (state->closed == 1) {
+    return handle_data_result_error_closed(env);
+  }
+
   (void)env;
 
   if (payload->size != 0) {
@@ -329,6 +343,32 @@ UNIFEX_TERM handle_data(UnifexEnv *env, State *state, UnifexPayload *payload) {
   } else {
     DEBUG("Handshake in progress");
     return handle_handshake_in_progress(state, ret);
+  }
+}
+
+// prefix close with exd (ex_dtls) as close is defined in unistd.h
+UNIFEX_TERM exd_close(UnifexEnv *env, State *state) {
+  if (state->closed == 1) {
+    return exd_close_result_ok(env, NULL, 0);
+  }
+
+  state->closed = 1;
+  if (SSL_shutdown(state->ssl) < 0) {
+    return exd_close_result_ok(env, NULL, 0);
+  } else {
+    UnifexPayload **gen_packets = NULL;
+    int gen_packets_size = 0;
+    read_pending_data(&gen_packets, &gen_packets_size, state);
+
+    if (gen_packets == NULL) {
+      return unifex_raise(state->env,
+                          "Close failed: couldn't read pending data");
+    } else {
+      UNIFEX_TERM res_term =
+          exd_close_result_ok(env, gen_packets, gen_packets_size);
+      free_payload_array(gen_packets, gen_packets_size);
+      return res_term;
+    }
   }
 }
 

@@ -194,4 +194,13 @@ defmodule ExDTLS do
   """
   @spec handle_timeout(dtls()) :: :ok | {:retransmit, packets :: [binary()], timeout :: integer()}
   defdelegate handle_timeout(dtls), to: Native
+
+  @doc """
+  Irreversibly closes DTLS session.
+
+  If a handshake has been finished, this function will generate `close_notify` DTLS alert
+  that should be sent to the other side.
+  """
+  @spec close(dtls()) :: {:ok, packets :: [binary()]}
+  defdelegate close(dtls), to: Native, as: :exd_close
 end
