@@ -60,15 +60,35 @@ defmodule ExDTLS.IntegrationTest do
     assert {:error, :handshake_error} = feed_packets(tx_dtls, packets)
   end
 
-  describe "disconnect" do
-    test "before handshake has finished" do
+  describe "close/1" do
+    test "before handshake has finished (client mode)" do
       dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
       assert {:ok, []} = ExDTLS.close(dtls)
       # assert that handshake can't be started
       assert {:error, :closed} = ExDTLS.do_handshake(dtls)
     end
 
-    test "after handshake has finished" do
+    test "before handshake has finished (server mode)" do
+      dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+      assert {:ok, []} = ExDTLS.close(dtls)
+      # assert that handshake can't be started
+      assert {:error, :closed} = ExDTLS.do_handshake(dtls)
+    end
+
+    test "after handshake has finished (client mode)" do
+      rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+      tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
+
+      {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+
+      assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
+      assert {:ok, [packet]} = ExDTLS.close(tx_dtls)
+      assert {:error, :peer_closed_for_writing} = ExDTLS.handle_data(rx_dtls, packet)
+      assert {:error, :closed} = ExDTLS.handle_timeout(tx_dtls)
+      assert {:error, :closed} = ExDTLS.handle_timeout(rx_dtls)
+    end
+
+    test "after handshake has finished (server mode)" do
       rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
       tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
 
@@ -77,6 +97,8 @@ defmodule ExDTLS.IntegrationTest do
       assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
       assert {:ok, [packet]} = ExDTLS.close(rx_dtls)
       assert {:error, :peer_closed_for_writing} = ExDTLS.handle_data(tx_dtls, packet)
+      assert {:error, :closed} = ExDTLS.handle_timeout(tx_dtls)
+      assert {:error, :closed} = ExDTLS.handle_timeout(rx_dtls)
     end
   end
 

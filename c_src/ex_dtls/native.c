@@ -391,6 +391,7 @@ UNIFEX_TERM handle_read_error(State *state, int ret) {
   int error = SSL_get_error(state->ssl, ret);
   switch (error) {
   case SSL_ERROR_ZERO_RETURN:
+    state->closed = 1;
     return handle_data_result_error_peer_closed_for_writing(state->env);
   case SSL_ERROR_WANT_READ:
     DEBUG("SSL WANT READ. This is workaround. Did we get retransmission?");
@@ -492,6 +493,10 @@ UNIFEX_TERM handle_handshake_in_progress(State *state, int ret) {
 }
 
 UNIFEX_TERM handle_timeout(UnifexEnv *env, State *state) {
+  if (state->closed == 1) {
+    return handle_timeout_result_error_closed(env);
+  }
+
   long result = DTLSv1_handle_timeout(state->ssl);
   if (result != 1)
     return handle_timeout_result_ok(env);
