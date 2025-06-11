@@ -5,7 +5,7 @@ defmodule ExDTLS.IntegrationTest do
     rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
 
-    {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+    {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
 
     assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
 
@@ -17,7 +17,7 @@ defmodule ExDTLS.IntegrationTest do
     rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true)
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 
-    {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+    {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
 
     assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
 
@@ -34,7 +34,7 @@ defmodule ExDTLS.IntegrationTest do
     assert {:error, :handshake_not_finished} = ExDTLS.write_data(sr_dtls, <<1, 2, 3>>)
     assert {:error, :handshake_not_finished} = ExDTLS.write_data(cl_dtls, <<1, 2, 3>>)
 
-    {packets, _timeout} = ExDTLS.do_handshake(cl_dtls)
+    {:ok, packets, _timeout} = ExDTLS.do_handshake(cl_dtls)
     assert :ok == loop({sr_dtls, false}, {cl_dtls, false}, packets)
 
     msg = <<1, 3, 2, 5>>
@@ -55,9 +55,51 @@ defmodule ExDTLS.IntegrationTest do
 
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
 
-    {packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+    {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
     {:handshake_packets, packets, _timeout} = feed_packets(rx_dtls, packets)
     assert {:error, :handshake_error} = feed_packets(tx_dtls, packets)
+  end
+
+  describe "close/1" do
+    test "before handshake has finished (client mode)" do
+      dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
+      assert {:ok, []} = ExDTLS.close(dtls)
+      # assert that handshake can't be started
+      assert {:error, :closed} = ExDTLS.do_handshake(dtls)
+    end
+
+    test "before handshake has finished (server mode)" do
+      dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+      assert {:ok, []} = ExDTLS.close(dtls)
+      # assert that handshake can't be started
+      assert {:error, :closed} = ExDTLS.do_handshake(dtls)
+    end
+
+    test "after handshake has finished (client mode)" do
+      rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+      tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
+
+      {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+
+      assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
+      assert {:ok, [packet]} = ExDTLS.close(tx_dtls)
+      assert {:error, :peer_closed_for_writing} = ExDTLS.handle_data(rx_dtls, packet)
+      assert {:error, :closed} = ExDTLS.handle_timeout(tx_dtls)
+      assert {:error, :closed} = ExDTLS.handle_timeout(rx_dtls)
+    end
+
+    test "after handshake has finished (server mode)" do
+      rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true, verify_peer: true)
+      tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true, verify_peer: true)
+
+      {:ok, packets, _timeout} = ExDTLS.do_handshake(tx_dtls)
+
+      assert :ok == loop({rx_dtls, false}, {tx_dtls, false}, packets)
+      assert {:ok, [packet]} = ExDTLS.close(rx_dtls)
+      assert {:error, :peer_closed_for_writing} = ExDTLS.handle_data(tx_dtls, packet)
+      assert {:error, :closed} = ExDTLS.handle_timeout(tx_dtls)
+      assert {:error, :closed} = ExDTLS.handle_timeout(rx_dtls)
+    end
   end
 
   defp loop({_dtls1, true}, {_dtls2, true}, _packets) do

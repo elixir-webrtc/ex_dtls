@@ -5,7 +5,7 @@ defmodule ExDTLS.RetransmissionTest do
     rx_dtls = ExDTLS.init(mode: :server, dtls_srtp: true)
     tx_dtls = ExDTLS.init(mode: :client, dtls_srtp: true)
 
-    {_packets, timeout} = ExDTLS.do_handshake(tx_dtls)
+    {:ok, _packets, timeout} = ExDTLS.do_handshake(tx_dtls)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)
     {:retransmit, packets, timeout} = wait_for_timeout(tx_dtls, :tx)
     Process.send_after(self(), {:handle_timeout, :tx}, timeout)

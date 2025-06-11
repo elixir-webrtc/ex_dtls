@@ -13,6 +13,7 @@ struct State {
   X509 *x509;
   int mode;
   int hsk_finished;
+  int closed;
 };
 
 #include "_generated/native.h"
