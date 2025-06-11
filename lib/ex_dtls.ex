@@ -139,7 +139,8 @@ defmodule ExDTLS do
 
   `timeout` is a time in ms after which `handle_timeout/1` should be called.
   """
-  @spec do_handshake(dtls()) :: {packets :: [binary()], timeout :: integer()}
+  @spec do_handshake(dtls()) ::
+          {:ok, packets :: [binary()], timeout :: integer()} | {:error, :closed}
   defdelegate do_handshake(dtls), to: Native
 
   @doc """
@@ -148,7 +149,7 @@ defmodule ExDTLS do
   Generates encrypted packets that need to be passed to the second host.
   """
   @spec write_data(dtls(), data :: binary()) ::
-          {:ok, packets :: [binary()]} | {:error, :handshake_not_finished}
+          {:ok, packets :: [binary()]} | {:error, :handshake_not_finished | :closed}
   defdelegate write_data(dtls, data), to: Native
 
   @doc """
@@ -172,7 +173,7 @@ defmodule ExDTLS do
              remote_keying_material :: binary(), protection_profile_t(), packets :: [binary()]}
           | {:handshake_finished, local_keying_material :: binary(),
              remote_keying_material :: binary(), protection_profile_t()}
-          | {:error, :handshake_error | :peer_closed_for_writing}
+          | {:error, :handshake_error | :peer_closed_for_writing | :closed}
   def handle_data(dtls, packets) do
     case Native.handle_data(dtls, packets) do
       {:handshake_finished, lkm, rkm, protection_profile, []} ->
@@ -192,7 +193,8 @@ defmodule ExDTLS do
 
   If there is no timeout to handle, simple `{:ok, dtls()}` tuple is returned.
   """
-  @spec handle_timeout(dtls()) :: :ok | {:retransmit, packets :: [binary()], timeout :: integer()}
+  @spec handle_timeout(dtls()) ::
+          :ok | {:retransmit, packets :: [binary()], timeout :: integer()} | {:error, :closed}
   defdelegate handle_timeout(dtls), to: Native
 
   @doc """
