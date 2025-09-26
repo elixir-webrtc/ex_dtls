@@ -205,7 +205,7 @@ X509 *gen_cert(EVP_PKEY *pkey, long not_before, long not_after) {
     return NULL;
   }
 
-  if (X509_sign(x509, pkey, EVP_sha1()) == 0) {
+  if (X509_sign(x509, pkey, EVP_sha256()) == 0) {
     DEBUG("Cannot sign cert");
     return NULL;
   }
