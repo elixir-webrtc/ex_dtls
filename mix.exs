@@ -1,7 +1,7 @@
 defmodule ExDTLS.Mixfile do
   use Mix.Project
 
-  @version "0.18.0"
+  @version "0.18.1"
   @github_url "https://github.com/elixir-webrtc/ex_dtls"
 
   def project do
@@ -26,8 +26,13 @@ defmodule ExDTLS.Mixfile do
       docs: docs(),
 
       # code coverage
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
