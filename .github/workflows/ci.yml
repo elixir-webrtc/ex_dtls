@@ -8,8 +8,8 @@ jobs:
     name: Lint (OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}})
     strategy:
       matrix:
-        otp: ['26']
-        elixir: ['1.15', '1.18']
+        otp: ['29']
+        elixir: ['1.20']
     steps:
       - uses: actions/checkout@v3
       - uses: erlef/setup-beam@v1
@@ -27,8 +27,8 @@ jobs:
     name: Test (OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}})
     strategy:
       matrix:
-        otp: ['26']
-        elixir: ['1.15', '1.18']
+        otp: ['29']
+        elixir: ['1.20']
     env:
       MIX_ENV: test
     steps:
