@@ -1,6 +1,7 @@
 
 #include "bio_frag.h"
 #include <openssl/bio.h>
+#include <openssl/crypto.h>
 
 static int bwrite(BIO *bio, const char *buf, int len);
 static int bread(BIO *bio, char *buf, int len);
@@ -10,6 +11,7 @@ static int destroy(BIO *bio);
 static long callback_ctrl(BIO *bio, int cmd, BIO_info_cb *fp);
 
 static BIO_METHOD *bio_methods = NULL;
+static CRYPTO_ONCE bio_methods_once = CRYPTO_ONCE_STATIC_INIT;
 
 #define MAX_FRAGS 100
 #define MTU 1200
@@ -20,16 +22,27 @@ struct Ctx {
   int riter;
 };
 
+// Built once: rebuilding the method per call let a concurrent caller create a
+// BIO from a half-populated method (no create callback, so no Ctx) and crash.
+static void init_bio_methods(void) {
+  BIO_METHOD *methods =
+      BIO_meth_new(BIO_TYPE_FILTER, "DTLS fragmentation for mem BIO");
+  if (methods == NULL) {
+    return;
+  }
+  BIO_meth_set_read(methods, bread);
+  BIO_meth_set_write(methods, bwrite);
+  BIO_meth_set_ctrl(methods, ctrl);
+  BIO_meth_set_create(methods, create);
+  BIO_meth_set_destroy(methods, destroy);
+  BIO_meth_set_callback_ctrl(methods, callback_ctrl);
+  bio_methods = methods;
+}
+
 const BIO_METHOD *BIO_f_frag(void) {
-  bio_methods = BIO_meth_new(BIO_TYPE_FILTER, "DTLS fragmentation for mem BIO");
-
-  BIO_meth_set_read(bio_methods, bread);
-  BIO_meth_set_write(bio_methods, bwrite);
-  BIO_meth_set_ctrl(bio_methods, ctrl);
-  BIO_meth_set_create(bio_methods, create);
-  BIO_meth_set_destroy(bio_methods, destroy);
-  BIO_meth_set_callback_ctrl(bio_methods, callback_ctrl);
-
+  if (!CRYPTO_THREAD_run_once(&bio_methods_once, init_bio_methods)) {
+    return NULL;
+  }
   return bio_methods;
 }
 
