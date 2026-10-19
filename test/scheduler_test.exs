@@ -23,7 +23,7 @@ defmodule ExDTLS.SchedulerTest do
     deadline = System.monotonic_time(:millisecond) + @duration_ms
 
     workers =
-      for _ <- 1..System.schedulers_online() do
+      for _worker <- 1..System.schedulers_online() do
         Task.async(fn -> generate_until(deadline) end)
       end
 
