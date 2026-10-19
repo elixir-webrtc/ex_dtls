@@ -6,6 +6,9 @@ callback :load
 
 state_type "State"
 
+# RSA key generation takes tens to hundreds of milliseconds
+dirty :cpu, init: 3, generate_key_cert: 2
+
 spec init(mode :: atom, dtls_srtp :: bool, verify_peer :: bool) :: state
 
 spec init_from_key_cert(mode :: atom, dtls_srtp :: bool, verify_peer :: bool, pkey :: payload, cert :: payload) ::
