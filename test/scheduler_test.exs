@@ -20,14 +20,15 @@ defmodule ExDTLS.SchedulerTest do
   end
 
   test "key generation does not block normal schedulers" do
-    deadline = System.monotonic_time(:millisecond) + @duration_ms
+    started = System.monotonic_time(:millisecond)
+    deadline = started + @duration_ms
 
     workers =
       for _worker <- 1..System.schedulers_online() do
         Task.async(fn -> generate_until(deadline) end)
       end
 
-    max_latency = measure_max_latency(deadline, 0)
+    max_latency = measure_max_latency(started, deadline, 0)
     Task.await_many(workers, @duration_ms * 2)
 
     assert max_latency < @max_latency_ms,
@@ -42,13 +43,15 @@ defmodule ExDTLS.SchedulerTest do
     end
   end
 
-  defp measure_max_latency(deadline, max_latency) do
-    start = System.monotonic_time(:millisecond)
+  # The first gap is measured from before the workers were spawned, so a stall
+  # that lasts until the deadline is still counted.
+  defp measure_max_latency(last, deadline, max_latency) do
+    Process.sleep(1)
+    now = System.monotonic_time(:millisecond)
+    max_latency = max(now - last - 1, max_latency)
 
-    if start < deadline do
-      Process.sleep(1)
-      latency = System.monotonic_time(:millisecond) - start - 1
-      measure_max_latency(deadline, max(latency, max_latency))
+    if now < deadline do
+      measure_max_latency(now, deadline, max_latency)
     else
       max_latency
     end
