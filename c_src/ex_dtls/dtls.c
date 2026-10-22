@@ -22,6 +22,12 @@ SSL_CTX *create_ctx(int dtls_srtp) {
 }
 
 SSL *create_ssl(SSL_CTX *ssl_ctx, int mode) {
+  const BIO_METHOD *frag_method = BIO_f_frag();
+  if (frag_method == NULL) {
+    DEBUG("Cannot create frag bio method");
+    return NULL;
+  }
+
   SSL *ssl = SSL_new(ssl_ctx);
   if (ssl == NULL) {
     return NULL;
@@ -35,7 +41,7 @@ SSL *create_ssl(SSL_CTX *ssl_ctx, int mode) {
     return NULL;
   }
 
-  BIO *frag_bio = BIO_new(BIO_f_frag());
+  BIO *frag_bio = BIO_new(frag_method);
   if (frag_bio == NULL) {
     DEBUG("Cannot create frag bio");
     return NULL;
