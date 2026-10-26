@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "dyn_buff.h"
+#include "exit_guard.h"
 #include "native.h"
 
 struct Datagram {
@@ -34,6 +35,11 @@ int handle_load(UnifexEnv *env, void **priv_data) {
   UNIFEX_UNUSED(env);
   UNIFEX_UNUSED(priv_data);
 
+  if (exit_guard_init() != 0) {
+    DEBUG("Cannot initialize exit guard");
+    return -1;
+  }
+
   FILE *urandom = fopen("/dev/urandom", "r");
   if (urandom == NULL) {
     DEBUG("Cannot open /dev/urandom");
@@ -58,6 +64,9 @@ UNIFEX_TERM init(UnifexEnv *env, char *mode_str, int dtls_srtp,
                  int verify_peer) {
   UNIFEX_TERM res_term;
 
+  // runs on a dirty scheduler, which can outlive OpenSSL at VM exit
+  exit_guard_enter();
+
   EVP_PKEY *pkey = gen_key();
   if (pkey == NULL) {
     res_term = unifex_raise(env, "Cannot generate key pair");
@@ -72,6 +81,7 @@ UNIFEX_TERM init(UnifexEnv *env, char *mode_str, int dtls_srtp,
 
   res_term = do_init(env, mode_str, dtls_srtp, verify_peer, pkey, x509);
 exit:
+  exit_guard_leave();
   return res_term;
 }
 
@@ -165,6 +175,9 @@ UNIFEX_TERM generate_key_cert(UnifexEnv *env, int not_before, int not_after) {
   UnifexPayload pkey_payload;
   UnifexPayload cert_payload;
 
+  // runs on a dirty scheduler, which can outlive OpenSSL at VM exit
+  exit_guard_enter();
+
   EVP_PKEY *pkey = gen_key();
   X509 *cert = gen_cert(pkey, (long)not_before, (long)not_after);
 
@@ -175,6 +188,8 @@ UNIFEX_TERM generate_key_cert(UnifexEnv *env, int not_before, int not_after) {
       generate_key_cert_result(env, &pkey_payload, &cert_payload);
   unifex_payload_release(&pkey_payload);
   unifex_payload_release(&cert_payload);
+
+  exit_guard_leave();
   return res_term;
 }
 
