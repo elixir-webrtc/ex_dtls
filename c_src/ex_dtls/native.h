@@ -6,7 +6,6 @@
 typedef struct State State;
 
 struct State {
-  UnifexEnv *env;
   SSL_CTX *ssl_ctx;
   SSL *ssl;
   EVP_PKEY *pkey;
